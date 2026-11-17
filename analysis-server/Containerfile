@@ -1,0 +1,22 @@
+ARG RUST_IMAGE=docker.io/library/rust:slim-bookworm
+FROM ${RUST_IMAGE} AS build
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential pkg-config git && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+# All imported rgctl crates come from the same sibling checkout. No rgctl CLI
+# executable is built or copied into the runtime image.
+COPY --from=rgctl-source Cargo.toml Cargo.lock build.rs languages.toml /src/cve-blast-radius-rhdh/rgctl-source/
+COPY --from=rgctl-source src /src/cve-blast-radius-rhdh/rgctl-source/src
+COPY --from=rgctl-source crates /src/cve-blast-radius-rhdh/rgctl-source/crates
+COPY --from=rgctl-source rgctl-macros /src/cve-blast-radius-rhdh/rgctl-source/rgctl-macros
+COPY Cargo.toml Cargo.lock build.rs /src/cve-blast-radius-rhdh/analysis-server/
+COPY src /src/cve-blast-radius-rhdh/analysis-server/src
+ARG RGCTL_REVISION=unknown
+ENV RGCTL_REVISION=${RGCTL_REVISION}
+RUN cargo build --locked --manifest-path /src/cve-blast-radius-rhdh/analysis-server/Cargo.toml
+
+FROM docker.io/library/debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends maven openjdk-17-jdk-headless ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=build /src/cve-blast-radius-rhdh/analysis-server/target/debug/dependency-impact-server /usr/local/bin/dependency-impact-server
+ENV IMPACT_LISTEN=0.0.0.0:7070
+EXPOSE 7070
+ENTRYPOINT ["dependency-impact-server"]

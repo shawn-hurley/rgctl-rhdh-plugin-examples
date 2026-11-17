@@ -1,0 +1,6 @@
+{
+  "extends": "@backstage/cli/config/tsconfig.json",
+  "include": ["plugins/*/src"],
+  "exclude": ["node_modules", "plugins/*/dist-dynamic"],
+  "compilerOptions": { "outDir": "dist-types", "rootDir": ".", "types": ["node", "react"] }
+}

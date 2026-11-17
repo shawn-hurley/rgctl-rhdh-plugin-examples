@@ -1,0 +1,237 @@
+openapi: 3.0.3
+info:
+  title: Dependency Impact Analysis
+  version: 1.0.0
+servers:
+  - url: http://localhost:7070
+security:
+  - serviceToken: []
+paths:
+  /health:
+    get:
+      security: []
+      responses:
+        '200':
+          description: HTTP service available; not a guarantee that every job input is resolvable
+  /v1/comparisons:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Comparison' }
+      responses:
+        '202':
+          description: Accepted into the bounded queue
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '503':
+          description: Queue full
+          headers:
+            Retry-After:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/comparisons/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      responses:
+        '200':
+          description: Current job status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /v1/comparisons/{id}/report:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      responses:
+        '200':
+          description: Completed report; coverage can be partial
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Report' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Error:
+      description: Request could not be served
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+    Comparison:
+      type: object
+      additionalProperties: false
+      required: [entityRef, applicationRevision, dependency, targetVersion, strategy]
+      properties:
+        entityRef: { type: string, example: 'component:default/dependency-impact-checkout' }
+        applicationRevision:
+          type: string
+          description: Server-configured source revision; demo-baseline selects the local demo input whose digest is recorded in the report
+          example: demo-baseline
+        dependency:
+          type: object
+          additionalProperties: false
+          required: [groupId, artifactId]
+          properties:
+            groupId: { type: string, example: io.rgctl.demo }
+            artifactId: { type: string, example: pricing }
+            type: { type: string, enum: [jar], default: jar }
+            classifier: { type: string, nullable: true, description: 'Only absent/null is supported in this version' }
+        targetVersion: { type: string, example: 1.1.0 }
+        strategy: { type: string, enum: [direct-upgrade, transitive-override] }
+    Job:
+      type: object
+      required: [id, request, state, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        request: { $ref: '#/components/schemas/Comparison' }
+        state: { type: string, enum: [queued, running, succeeded, failed] }
+        stage:
+          type: string
+          nullable: true
+          enum: [resolving, acquiring-sources, indexing, comparing, tracing-impact, assembling-report]
+        createdAt: { type: integer, format: int64, description: Unix seconds }
+        updatedAt: { type: integer, format: int64, description: Unix seconds }
+        error:
+          type: object
+          nullable: true
+          properties:
+            code: { type: string }
+            message: { type: string }
+    Symbol:
+      type: object
+      required: [id, rgctlId, snapshot, name, sourceId, file]
+      properties:
+        id: { type: string, description: Opaque snapshot-specific symbol reference }
+        rgctlId: { type: string, format: uuid }
+        snapshot: { type: string, enum: [baseline, candidate] }
+        name: { type: string }
+        qualifiedName: { type: string, nullable: true }
+        signature: { type: string, nullable: true }
+        resolution: { type: string, enum: [resolved-static, ambiguous-overload] }
+        sourceId: { type: string }
+        file: { type: string, description: Path relative to the owning application Java source root or source JAR }
+        startLine: { type: integer, nullable: true }
+        endLine: { type: integer, nullable: true }
+    SourceBlock:
+      type: object
+      required: [id, snapshot, sourceId, sourceIdentity, file, startLine, endLine, precision, text]
+      properties:
+        id: { type: string }
+        snapshot: { type: string, enum: [baseline, candidate] }
+        sourceId: { type: string }
+        sourceIdentity: { type: object, additionalProperties: true }
+        file: { type: string }
+        startLine: { type: integer, minimum: 1 }
+        endLine: { type: integer, minimum: 1, description: Inclusive }
+        precision: { type: string, enum: [enclosing-function] }
+        text: { type: string }
+    Change:
+      type: object
+      required: [id, kind, baseline, candidate]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [added, modified, removed] }
+        baseline:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/Symbol'
+        candidate:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/Symbol'
+    Impact:
+      type: object
+      required: [id, symbol, sourceBlockId, changeIds, pathIds]
+      properties:
+        id: { type: string }
+        symbol: { $ref: '#/components/schemas/Symbol' }
+        sourceBlockId: { type: string, nullable: true }
+        changeIds: { type: array, items: { type: string } }
+        pathIds: { type: array, items: { type: string } }
+    CallPath:
+      type: object
+      required: [id, changeId, symbols, edges, interpretation]
+      properties:
+        id: { type: string }
+        changeId: { type: string }
+        symbols: { type: array, items: { $ref: '#/components/schemas/Symbol' } }
+        edges:
+          type: array
+          items:
+            type: object
+            required: [from, to, type]
+            properties:
+              from: { type: string }
+              to: { type: string }
+              type: { type: string, enum: [Calls, PossibleDispatch] }
+              binding:
+                type: object
+                nullable: true
+                properties:
+                  declaredTarget: { type: string, format: uuid }
+                  declaredQualifiedName: { type: string }
+                  implementationQualifiedName: { type: string }
+                  reason: { type: string }
+        interpretation: { type: string, enum: [potential-static-impact] }
+        resolution: { type: string, enum: [resolved-static, possible-dispatch, ambiguous-overload] }
+    Report:
+      type: object
+      required: [schemaVersion, comparisonId, application, resolution, sources, changes, impacts, paths, sourceBlocks, coverage, diagnostics, provenance]
+      properties:
+        schemaVersion: { type: string, enum: ['1'] }
+        comparisonId: { type: string, format: uuid }
+        application: { type: object, additionalProperties: true }
+        resolution: { type: object, additionalProperties: true }
+        dispatch:
+          type: object
+          description: Conservative implementation expansion across runtime configurations; persisted rgctl snapshots are unchanged.
+          properties:
+            policy: { type: string }
+            possibleEdges: { type: array, items: { type: object, additionalProperties: true } }
+            unresolvedInterfaceCalls: { type: integer }
+        sources: { type: array, items: { type: object, additionalProperties: true } }
+        changes: { type: array, items: { $ref: '#/components/schemas/Change' } }
+        impacts: { type: array, items: { $ref: '#/components/schemas/Impact' } }
+        paths: { type: array, items: { $ref: '#/components/schemas/CallPath' } }
+        sourceBlocks: { type: array, items: { $ref: '#/components/schemas/SourceBlock' } }
+        coverage:
+          type: object
+          required: [status, scope, truncated]
+          properties:
+            status: { type: string, enum: [partial] }
+            scope: { type: string }
+            truncated: { type: boolean }
+        diagnostics: { type: array, items: { type: object, additionalProperties: true } }
+        provenance: { type: object, additionalProperties: true }

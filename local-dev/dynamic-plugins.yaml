@@ -1,0 +1,29 @@
+plugins:
+  - package: ./local-plugins/dependency-impact-backend/dist-dynamic
+    disabled: false
+    forceDownload: true
+  - package: ./local-plugins/dependency-impact/dist-dynamic
+    disabled: false
+    forceDownload: true
+    pluginConfig:
+      dynamicPlugins:
+        frontend:
+          internal.backstage-plugin-dependency-impact:
+            dynamicRoutes:
+              - path: /dependency-impact
+                importName: DependencyImpactPage
+                menuItem:
+                  text: Dependency Impact
+            entityTabs:
+              - path: /dependency-impact
+                title: Dependency Impact
+                mountPoint: entity.page.dependency-impact
+            mountPoints:
+              - mountPoint: entity.page.dependency-impact/cards
+                importName: EntityDependencyImpactContent
+                config:
+                  layout:
+                    gridColumn: '1 / -1'
+                  if:
+                    allOf:
+                      - hasAnnotation: rgctl.io/evaluation-scenario

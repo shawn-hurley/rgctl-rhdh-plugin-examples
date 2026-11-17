@@ -1,0 +1,23 @@
+{
+  "name": "dependency-impact-rhdh",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "plugins/*"
+  ],
+  "scripts": {
+    "build:plugins": "tsc --emitDeclarationOnly && yarn workspaces foreach -A --exclude dependency-impact-rhdh run build",
+    "export:plugins": "tsc --emitDeclarationOnly && yarn workspace @internal/backstage-plugin-dependency-impact export-dynamic && yarn workspace @internal/backstage-plugin-dependency-impact-backend export-dynamic",
+    "local:up": "podman compose -f local-dev/compose.yaml up -d --no-build",
+    "local:down": "podman compose -f local-dev/compose.yaml down",
+    "local:reload": "podman compose -f local-dev/compose.yaml run --rm install-plugins && podman compose -f local-dev/compose.yaml restart rhdh"
+  },
+  "devDependencies": {
+    "@backstage/cli": "~0.36.0",
+    "@red-hat-developer-hub/cli": "~1.10.8",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.0",
+    "typescript": "~5.9.3"
+  }
+}

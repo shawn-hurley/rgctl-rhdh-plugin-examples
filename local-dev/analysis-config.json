@@ -1,0 +1,38 @@
+{
+  "applications": {
+    "component:default/dependency-impact-checkout": {
+      "path": "/demos/checkout/app",
+      "revision": "demo-baseline"
+    },
+    "component:default/dependency-impact-delivery": {
+      "path": "/demos/delivery/app",
+      "revision": "demo-baseline"
+    },
+    "component:default/dependency-impact-notification": {
+      "path": "/demos/notification/app",
+      "revision": "demo-baseline"
+    },
+    "component:default/dependency-impact-file-import": {
+      "path": "/demos/file-import/app",
+      "revision": "demo-baseline"
+    },
+    "component:default/dependency-impact-no-impact": {
+      "path": "/demos/no-impact/app",
+      "revision": "demo-baseline"
+    },
+    "component:default/dependency-impact-injected-policy": {
+      "path": "/demos/injected-policy/app",
+      "revision": "demo-baseline"
+    },
+    "component:default/dependency-impact-caller-separation": {
+      "path": "/demos/caller-separation/app",
+      "revision": "demo-baseline"
+    },
+    "component:default/dependency-impact-stable-preview": {
+      "path": "/demos/stable-preview/app",
+      "revision": "demo-baseline"
+    }
+  },
+  "dataDir": "/data",
+  "queueCapacity": 8
+}

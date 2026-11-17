@@ -1,0 +1,51 @@
+app:
+  title: Dependency Impact Development
+  baseUrl: http://localhost:7007
+
+organization:
+  name: Dependency Impact Demo
+
+backend:
+  baseUrl: http://localhost:7007
+  listen:
+    host: 0.0.0.0
+    port: 7007
+  cors:
+    origin: http://localhost:7007
+    credentials: true
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+  auth:
+    externalAccess:
+      - type: static
+        options:
+          token: dependency-impact-local-development
+          subject: local-developer
+
+auth:
+  environment: development
+  providers:
+    guest:
+      dangerouslyAllowOutsideDevelopment: true
+
+permission:
+  enabled: false
+
+catalog:
+  rules:
+    - allow: [Component, Group, Location]
+  locations:
+    - type: file
+      target: /opt/app-root/src/demo-evaluation/catalog-info.yaml
+
+techdocs:
+  builder: external
+
+dynamicPlugins:
+  rootDirectory: dynamic-plugins-root
+
+dependencyImpact:
+  service:
+    baseUrl: http://analysis:7070
+    token: dependency-impact-local-service

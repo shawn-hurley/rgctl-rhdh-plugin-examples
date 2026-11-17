@@ -1,0 +1,57 @@
+name: dependency-impact-dev
+
+services:
+  analysis:
+    image: localhost/dependency-impact-analysis:dev
+    build:
+      context: ../..
+      dockerfile: cve-blast-radius-rhdh/analysis-server/Containerfile
+      args:
+        RGCTL_REVISION: ${RGCTL_REVISION:-unknown}
+    environment:
+      IMPACT_CONFIG: /config/analysis-config.json
+      IMPACT_SERVICE_TOKEN: dependency-impact-local-service
+    ports:
+      - "127.0.0.1:7070:7070"
+    volumes:
+      - ./analysis-config.json:/config/analysis-config.json:ro,z
+      - ../demo-evaluation/demos:/demos:ro,z
+      - ${HOME}/.m2:/root/.m2:z
+      - analysis-data:/data
+
+  install-plugins:
+    image: ${RHDH_IMAGE:-quay.io/rhdh-community/rhdh:1.10.6}
+    user: "0"
+    entrypoint: ["/bin/sh", "./install-dynamic-plugins.sh", "/dynamic-plugins-root"]
+    volumes:
+      - ./dynamic-plugins.yaml:/opt/app-root/src/dynamic-plugins.yaml:ro,z
+      - ../plugins:/opt/app-root/src/local-plugins:ro,z
+      - dynamic-plugins:/dynamic-plugins-root
+
+  rhdh:
+    image: ${RHDH_IMAGE:-quay.io/rhdh-community/rhdh:1.10.6}
+    entrypoint:
+      - node
+      - --no-node-snapshot
+      - packages/backend
+      - --config
+      - local-config.yaml
+      - --config
+      - dynamic-plugins-root/app-config.dynamic-plugins.yaml
+    environment:
+      NODE_ENV: development
+    ports:
+      - "127.0.0.1:7007:7007"
+    volumes:
+      - ./app-config.yaml:/opt/app-root/src/local-config.yaml:ro,z
+      - ../demo-evaluation:/opt/app-root/src/demo-evaluation:ro,z
+      - dynamic-plugins:/opt/app-root/src/dynamic-plugins-root:ro
+    depends_on:
+      analysis:
+        condition: service_started
+      install-plugins:
+        condition: service_completed_successfully
+
+volumes:
+  dynamic-plugins:
+  analysis-data:

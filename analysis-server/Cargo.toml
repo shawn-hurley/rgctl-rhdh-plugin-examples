@@ -1,0 +1,37 @@
+[package]
+name = "dependency-impact-server"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+anyhow = "1"
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+sha2 = "0.10"
+hex = "0.4"
+xmltree = "0.11"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+rgctl-error = { path = "../rgctl-source/crates/rgctl-error" }
+rgctl-extraction = { path = "../rgctl-source/crates/rgctl-extraction" }
+rgctl-graph = { path = "../rgctl-source/crates/rgctl-graph" }
+rgctl-analysis = { path = "../rgctl-source/crates/rgctl-analysis" }
+rgctl-pipeline = { path = "../rgctl-source/crates/rgctl-pipeline" }
+rgctl-registry = { path = "../rgctl-source/crates/rgctl-registry" }
+rgctl-lang-java = { path = "../rgctl-source/crates/rgctl-lang-java" }
+rgctl-lang-javascript = { path = "../rgctl-source/crates/rgctl-lang-javascript" }
+rgctl-lang-typescript = { path = "../rgctl-source/crates/rgctl-lang-typescript" }
+rgctl-lang-python = { path = "../rgctl-source/crates/rgctl-lang-python" }
+rgctl-lang-go = { path = "../rgctl-source/crates/rgctl-lang-go" }
+rgctl-plugin-api = { path = "../rgctl-source/crates/rgctl-plugin-api" }
+tree-sitter = "0.25"
+
+[dev-dependencies]
+tempfile = "3"
+
+[build-dependencies]
+sha2 = "0.10"
+hex = "0.4"
