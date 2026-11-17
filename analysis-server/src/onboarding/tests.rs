@@ -8,6 +8,7 @@ fn request(name: &str) -> Onboard {
             repository_url: "https://github.com/example/java-service.git".into(),
             revision: "HEAD".into(),
             sub_path: String::new(),
+            include_maven_dependencies: false,
         },
         provides_apis: vec![],
         consumes_apis: vec![],
@@ -18,6 +19,8 @@ fn build(name: &str, source: &str) -> (tempfile::TempDir, Config, Manifest) {
     let config = Config {
         data_dir: temp.path().join("data"),
         allowed_repository_hosts: vec!["github.com".into()],
+        allowed_source_roots: vec![],
+        maven_repository: None,
         queue_capacity: 8,
     };
     let source_dir = temp.path().join("source/src/main/java");
@@ -32,6 +35,7 @@ fn build(name: &str, source: &str) -> (tempfile::TempDir, Config, Manifest) {
         &dir,
         &temp.path().join("source"),
         "abc123".into(),
+        None,
     )
     .unwrap();
     (temp, config, manifest)
@@ -238,6 +242,8 @@ fn repository_validation_blocks_outside_sources_and_argument_injection() {
     let config = Config {
         data_dir: "/unused".into(),
         allowed_repository_hosts: vec!["github.com".into()],
+        allowed_source_roots: vec![],
+        maven_repository: None,
         queue_capacity: 8,
     };
     let mut r = request("service");
@@ -303,5 +309,107 @@ fn graph_versions_cannot_be_read_as_another_application() {
             &m.graph_version
         )
         .is_err()
+    );
+}
+
+#[test]
+fn resource_paths_follow_an_injected_interface_to_native_file_operands() {
+    let (_, _, m) = build(
+        "resource",
+        r#"
+package example;
+import java.nio.file.Files;
+import java.nio.file.Path;
+interface Sink { void save(String s) throws Exception; }
+class FileSink implements Sink {
+    public void save(String s) throws Exception { Files.writeString(Path.of("orders.txt"),s); }
+}
+class Service {
+    private final Sink sink;
+    Service(Sink sink) { this.sink=sink; }
+    public void place(String s) throws Exception { sink.save(s); }
+}
+public class Application {
+    public static void main(String[] args) throws Exception { new Service(new FileSink()).place("ok"); }
+}
+"#,
+    );
+    let usage = m
+        .resource_uses
+        .iter()
+        .find(|u| u.uri.as_deref() == Some("file:orders.txt"))
+        .expect("resource use");
+    assert!(
+        usage.application_paths.iter().any(|p| {
+            let names: Vec<_> = p
+                .symbols
+                .iter()
+                .map(|s| s.qualified_name.as_str())
+                .collect();
+            names.contains(&"example.Application.main")
+                && names.contains(&"example.Service.place")
+                && names.contains(&"example.FileSink.save")
+        }),
+        "Expected the injected source-to-resource path"
+    );
+}
+
+#[test]
+fn local_sources_are_pinned_git_inputs_under_an_explicit_allowed_root() {
+    let temp = tempfile::tempdir().unwrap();
+    let repository = temp.path().join("repository");
+    let selected = repository.join("app");
+    fs::create_dir_all(&selected).unwrap();
+    fs::write(selected.join("Source.java"), "committed").unwrap();
+    let git = |args: &[&str]| {
+        let status = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&repository)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap();
+        assert!(status.success());
+    };
+    git(&["init", "-b", "main"]);
+    git(&["add", "--all"]);
+    git(&[
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@localhost",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-m",
+        "Add source input",
+    ]);
+    fs::write(selected.join("Source.java"), "dirty working tree").unwrap();
+    let mut r = request("local");
+    r.source.repository_url = url::Url::from_directory_path(&selected)
+        .unwrap()
+        .to_string();
+    let mut config = Config {
+        data_dir: temp.path().join("data"),
+        allowed_repository_hosts: vec![],
+        allowed_source_roots: vec![],
+        maven_repository: None,
+        queue_capacity: 8,
+    };
+    assert!(store::validate(&config, &r).is_err());
+    config.allowed_source_roots = vec![repository.clone()];
+    store::validate(&config, &r).unwrap();
+    let work = temp.path().join("job");
+    fs::create_dir_all(&work).unwrap();
+    let (checked_out, commit) = store::checkout(&r, &work).unwrap();
+    assert_eq!(commit.len(), 40);
+    assert_eq!(
+        fs::read_to_string(checked_out.join("Source.java")).unwrap(),
+        "committed"
+    );
+    config.allowed_source_roots = vec![selected];
+    assert!(
+        store::validate(&config, &r).is_err(),
+        "The enclosing Git repository must also be allowed"
     );
 }

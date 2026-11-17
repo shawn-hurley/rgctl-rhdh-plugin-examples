@@ -18,6 +18,12 @@ analysis-server/target/
 /local-dev/verify-demos.py
 /local-dev/verify-demo-browser.cjs
 /local-dev/DEMO-RUNBOOK.md
+/examples/catalog-relations/
+/local-dev/catalog-relations.yaml
+/local-dev/prepare-catalog-examples.py
+/local-dev/configure-catalog-examples.py
+/local-dev/verify-catalog-relations.py
+/local-dev/verify-catalog-relations.cjs
 /recordings/
 /.worktrees/
 **/__pycache__/

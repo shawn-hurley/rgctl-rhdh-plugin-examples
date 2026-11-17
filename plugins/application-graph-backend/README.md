@@ -7,6 +7,9 @@ are `application-graph` and `/api/application-graph`.
 The plugin reads authorized catalog entities and their standard source/API
 fields. It submits immutable graph builds, scopes graph reads to visible
 Components, and connects applications using live processed catalog API relations.
+`GET /relationships` also returns component/resource `dependsOn`/`dependencyOf`
+and component `partOf`/`hasPart`, with source paths where the stored Java/Maven
+graph provides evidence. Hierarchy membership stays separate from calls.
 
 ```yaml
 applicationGraph:

@@ -8,4 +8,4 @@ yarn tsc --strict --skipLibCheck --esModuleInterop --module commonjs --target es
   plugins/application-graph-backend/src/catalog.ts \
   plugins/application-graph-backend/src/client.ts \
   plugins/application-graph-backend/src/router.ts
-node --test plugins/application-graph-backend/test/router.test.cjs
+node --test plugins/application-graph-backend/test/*.test.cjs

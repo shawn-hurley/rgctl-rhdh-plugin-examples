@@ -134,7 +134,7 @@ fn known_annotation(
             .is_some_and(|tail| String::from_utf8_lossy(tail).trim_start().starts_with(".*"))
     })
 }
-fn symbol(node: &Node, root: &Path) -> Symbol {
+pub(super) fn symbol(node: &Node, root: &Path) -> Symbol {
     let file = Path::new(node.file_path.as_deref().unwrap_or(""));
     Symbol {
         node_id: node.id.to_string(),
@@ -163,6 +163,37 @@ fn literal(facts: &FunctionOperands, expression: ExpressionId, source: &[u8]) ->
     }
     let span = value.span?;
     serde_json::from_slice(source.get(span.start as usize..span.end as usize)?).ok()
+}
+fn resource_literal(
+    facts: &FunctionOperands,
+    expression: ExpressionId,
+    source: &[u8],
+    depth: usize,
+) -> Option<String> {
+    if depth > 8 {
+        return None;
+    }
+    if let Some(value) = literal(facts, expression, source) {
+        return Some(value);
+    }
+    if let ExpressionKind::CallResult(id) = facts.expressions.get(expression.0 as usize)?.kind {
+        let call = facts.calls.get(id.0 as usize)?;
+        if ["of", "get"].contains(&call_name(facts, call.callee)?)
+            && call
+                .receiver
+                .and_then(|r| call_name(facts, r))
+                .is_some_and(|name| ["Path", "Paths"].contains(&name))
+            && call.arguments.len == 1
+        {
+            return resource_literal(
+                facts,
+                call.arguments.slice(&facts.arguments)?.first()?.value,
+                source,
+                depth + 1,
+            );
+        }
+    }
+    None
 }
 fn chain_method(facts: &FunctionOperands, mut expression: ExpressionId) -> Vec<String> {
     for _ in 0..64 {
@@ -219,7 +250,7 @@ pub fn discover(
     root: &Path,
     files: &[std::path::PathBuf],
     graph: &SnapshotNodeStore,
-) -> Result<(Vec<Operation>, Vec<Value>)> {
+) -> Result<(Vec<Operation>, Vec<Value>, Vec<ResourceUse>)> {
     let mut nodes = BTreeMap::<String, Vec<Node>>::new();
     graph.for_each_node_of_type(NodeType::Function, |n| {
         nodes
@@ -230,6 +261,7 @@ pub fn discover(
     let java = rgctl_lang_java::JavaPlugin::new()?;
     let mut operations = vec![];
     let mut diagnostics = vec![];
+    let mut resource_uses = vec![];
     for relative in files {
         let name = relative.to_string_lossy().replace('\\', "/");
         let Some(functions) = nodes.get(&name) else {
@@ -248,6 +280,9 @@ pub fn discover(
         let source_text = String::from_utf8_lossy(&source);
         let http_client = source_text.contains("org.springframework.web.client.")
             || source_text.contains("org.springframework.web.reactive.function.client.");
+        let resource_client = source_text.contains("java.nio.file.")
+            || source_text.contains("java.sql.")
+            || source_text.contains("javax.sql.");
         let parsed = ParsedSourceFile::parse("java", &source)?;
         for node in functions {
             let location = symbol(node, root);
@@ -308,7 +343,7 @@ pub fn discover(
                     });
                 }
             }
-            if !http_client {
+            if !http_client && !resource_client {
                 continue;
             }
             let cfg = match (node.start_byte, node.end_byte) {
@@ -337,6 +372,55 @@ pub fn discover(
                 let Some(method) = call_name(facts, call.callee) else {
                     continue;
                 };
+                if resource_client {
+                    let receiver = call
+                        .receiver
+                        .and_then(|r| call_name(facts, r))
+                        .unwrap_or("");
+                    let kind = if receiver == "Files"
+                        && [
+                            "writeString",
+                            "readString",
+                            "write",
+                            "readAllBytes",
+                            "createFile",
+                            "delete",
+                            "exists",
+                        ]
+                        .contains(&method)
+                    {
+                        Some("file-store")
+                    } else if method == "getConnection" {
+                        Some("database")
+                    } else {
+                        None
+                    };
+                    if let Some(kind) = kind {
+                        let value = call
+                            .arguments
+                            .slice(&facts.arguments)
+                            .and_then(|a| a.first())
+                            .and_then(|a| resource_literal(facts, a.value, &source, 0));
+                        let uri = if kind == "file-store" {
+                            value.map(|p| format!("file:{p}"))
+                        } else {
+                            value
+                        };
+                        if uri.is_none() {
+                            diagnostics.push(json!({"code":"UNRESOLVED_RESOURCE_URI","symbol":location,"operation":method}));
+                        }
+                        resource_uses.push(ResourceUse {
+                            resource_type: kind.into(),
+                            uri,
+                            operation: method.into(),
+                            symbol: location.clone(),
+                            application_paths: vec![],
+                        });
+                    }
+                }
+                if !http_client {
+                    continue;
+                }
                 let verb = match method {
                     "getForObject" | "getForEntity" => Some("GET"),
                     "postForObject" | "postForEntity" => Some("POST"),
@@ -387,7 +471,7 @@ pub fn discover(
             &b.path,
         ))
     });
-    Ok((operations, diagnostics))
+    Ok((operations, diagnostics, resource_uses))
 }
 
 pub fn index(
@@ -396,9 +480,26 @@ pub fn index(
     dir: &Path,
     source: &Path,
     commit: String,
+    maven_repository: Option<std::path::PathBuf>,
 ) -> Result<Manifest> {
     let input = dir.join("input");
-    let files = store::copy_java(source, &input)?;
+    let mut files = if request.source.include_maven_dependencies {
+        store::copy_java(source, &input.join("application"))?
+            .into_iter()
+            .map(|p| std::path::PathBuf::from("application").join(p))
+            .collect()
+    } else {
+        store::copy_java(source, &input)?
+    };
+    let (project_coordinate, artifacts) = if request.source.include_maven_dependencies {
+        let (coordinate, artifacts, additional) =
+            super::dependencies::acquire(source, dir, &input, maven_repository)?;
+        files.extend(additional);
+        (Some(coordinate), artifacts)
+    } else {
+        (None, vec![])
+    };
+    files.sort();
     let mut digest = vec![];
     for relative in &files {
         digest.extend(relative.to_string_lossy().as_bytes());
@@ -426,7 +527,22 @@ pub fn index(
         stats.files_failed
     );
     let graph = SnapshotNodeStore::open(&snapshot)?;
-    let (operations, diagnostics) = discover(&input, &files, &graph)?;
+    let (operations, mut diagnostics, mut resource_uses) = discover(&input, &files, &graph)?;
+    for artifact in &artifacts {
+        if artifact.status != "available" {
+            diagnostics.push(
+                json!({"code":"MISSING_DEPENDENCY_SOURCES","coordinate":artifact.coordinate}),
+            );
+        }
+    }
+    let dependency_traces = super::trace::populate(
+        &graph,
+        &input,
+        request.source.include_maven_dependencies,
+        &artifacts,
+        &mut resource_uses,
+        &mut diagnostics,
+    )?;
     Ok(Manifest {
         schema_version: 1,
         application_key: store::key(&request.entity_ref),
@@ -445,6 +561,10 @@ pub fn index(
         consumes_apis: request.consumes_apis.clone(),
         operations,
         diagnostics,
+        project_coordinate,
+        artifacts,
+        dependency_traces,
+        resource_uses,
     })
 }
 

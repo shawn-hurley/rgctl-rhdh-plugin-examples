@@ -93,8 +93,17 @@ applications/<applicationKey>.json  current successful version
 
 The selected repository/subdirectory supplies production Java source across its
 modules. Test sources, build directories and symlinks are excluded. Onboarding
-does not execute application code or a Maven/Gradle build. The stored graph covers
-these application sources; it does not acquire external dependency source JARs.
+does not compile or run application code. By default the graph indexes application
+sources. `application-graph.io/maven-sources: 'true'` opts a catalog Component into
+Maven dependency resolution and binary/source JAR acquisition, including
+transitive dependencies, using the normal Maven repository. Select one Maven
+module per opted-in Component.
+
+Maven manifests include `projectCoordinate`, direct/transitive `artifacts` with
+source JAR hashes, and `dependencyTraces`. Native call and receiver facts produce
+code paths across application and dependency sources. `resourceUses` records
+literal file/JDBC operations and their application paths, including injected
+interface dispatch. Source path limits are recorded as diagnostics when reached.
 
 The snapshot is opened with `SnapshotNodeStore`, with checksum verification.
 Node and edge queries have bounded pages. Keep one service writer per data
@@ -113,11 +122,15 @@ Backstage endpoints, under `/api/application-graph`:
 | `GET /applications/{key}/nodes` | Native graph nodes |
 | `GET /applications/{key}/edges` | Native typed edges, including `Calls` |
 | `GET /connections` | Current catalog API relationships and source-backed operation matches |
+| `GET /relationships` | Component/resource dependencies, component hierarchy, and transitive paths with code evidence |
 
 Node/edge queries accept `offset`, `limit` (1–1000), `nodeId`, and `graphVersion`.
 Connections may be filtered by canonical `entityRef`. Every read delegates
 catalog authorization, including both Components and the API in a connection.
 Catalog failures return errors rather than an apparently empty result.
+Relationship queries accept a Component or Resource `entityRef` and `depth`
+(1–8, default 4). Catalog traversal is bounded at 200 visible entities and 200
+dependency paths. `partOf`/`hasPart` membership is returned as structural evidence.
 
 ## HTTP discovery and connections
 
@@ -157,6 +170,16 @@ mechanism and explicitly allow the repository hostname in
 `allowedRepositoryHosts`. The API accepts HTTPS URLs without inline credentials,
 and validates revisions/subdirectories before checkout. GitHub and GitLab tree
 URLs are understood by the backend; a repository URL indexes its default branch.
+Local `file:` source locations are supported only under explicitly configured
+`allowedSourceRoots`, and the enclosing Git repository must also be allowed.
+Only committed Git inputs are cloned. Local sources are disabled by default.
+
+Resources use an explicit `application-graph.io/resource-uri` annotation to match
+native source operands; catalog `dependsOn` alone does not specify a connection
+URI. Maven Component bindings use their indexed `projectCoordinate`, not a
+Component's display name. Per-edge source evidence belongs to its named graph;
+root-specific `dependencyPaths` preserve the calling application's injection
+context across shared libraries.
 
 ## Real applications and verification
 
@@ -183,3 +206,8 @@ after restart. Generated verification results remain under
 `local-dev/.generated/`. No recording or fixture applications are required.
 The catalog-edit check temporarily removes/restores the local consumer's
 `consumesApis` field and verifies that graph versions remain unchanged.
+
+The [catalog relationship validation](CATALOG-RELATIONSHIP-VALIDATION.md) records
+the additional Maven, resource and hierarchy checks. The example applications,
+catalog descriptors and walkthrough scripts used for those checks are local
+development assets intentionally excluded from Git.

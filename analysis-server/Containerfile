@@ -15,7 +15,7 @@ ENV RGCTL_REVISION=${RGCTL_REVISION}
 RUN cargo build --locked --manifest-path /src/cve-blast-radius-rhdh/analysis-server/Cargo.toml
 
 FROM docker.io/library/debian:bookworm-slim AS application-graph
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates maven openjdk-17-jre-headless && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/cve-blast-radius-rhdh/analysis-server/target/debug/application-graph-server /usr/local/bin/application-graph-server
 ENV APPLICATION_GRAPH_LISTEN=0.0.0.0:7071
 EXPOSE 7071

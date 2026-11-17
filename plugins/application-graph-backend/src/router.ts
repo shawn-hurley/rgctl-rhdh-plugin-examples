@@ -1,6 +1,7 @@
 import { Router, json, Request, Response, NextFunction } from 'express';
 import { Entity, HttpError, entityRef, onboardingRequest, catalogRelations } from './catalog';
 import { GraphClient, Application, Connection, Job } from './client';
+import {catalogRef,relationships,GraphEvidence} from './relationships';
 
 export function createRouter(options: {service: GraphClient; readEntity: (request: Request, ref: string) => Promise<Entity>}) {
   const router = Router();
@@ -86,6 +87,13 @@ export function createRouter(options: {service: GraphClient; readEntity: (reques
       } catch (error) { if (!(error instanceof HttpError) || ![403,404].includes(error.status)) throw error; }
     }
     response.json({connections});
+  }));
+  router.get('/relationships',route(async(request,response)=>{
+    const ref=request.query.entityRef===undefined?undefined:catalogRef(request.query.entityRef);
+    const depth=request.query.depth===undefined?4:Number(request.query.depth);
+    if(!Number.isInteger(depth)||depth<1||depth>8)throw new HttpError(400,'INVALID_DEPTH','Depth must be between 1 and 8');
+    const data=await options.service.request<{applications:GraphEvidence[]}>('/v1/applications');
+    response.json(await relationships({request,readEntity:options.readEntity,applications:data.applications,entity:ref,depth}));
   }));
   router.use((error: unknown,_request: Request,response: Response,next: NextFunction) => {
     if (!(error instanceof HttpError)) { next(error); return; }

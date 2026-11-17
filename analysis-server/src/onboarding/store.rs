@@ -95,22 +95,65 @@ pub fn validate(config: &Config, request: &Onboard) -> Result<()> {
         "Expected canonical API references"
     );
     let url = url::Url::parse(&request.source.repository_url)?;
-    ensure!(
-        url.scheme() == "https"
-            && url.username().is_empty()
-            && url.password().is_none()
-            && url.query().is_none()
-            && url.fragment().is_none()
-            && url.port().is_none(),
-        "Expected an HTTPS repository URL without credentials or options"
-    );
-    ensure!(
-        config
-            .allowed_repository_hosts
-            .iter()
-            .any(|h| Some(h.as_str()) == url.host_str()),
-        "Repository host is not allowed"
-    );
+    if url.scheme() == "file" {
+        ensure!(
+            url.username().is_empty()
+                && url.password().is_none()
+                && url.query().is_none()
+                && url.fragment().is_none(),
+            "Invalid local source URL"
+        );
+        let path = url
+            .to_file_path()
+            .map_err(|_| anyhow::anyhow!("Invalid local source URL"))?
+            .canonicalize()?;
+        ensure!(
+            config
+                .allowed_source_roots
+                .iter()
+                .any(|root| root.canonicalize().is_ok_and(|root| path.starts_with(root))),
+            "Local source is outside configured roots"
+        );
+        let git = Command::new("git")
+            .args([
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "safe.directory=*",
+                "rev-parse",
+                "--show-toplevel",
+            ])
+            .current_dir(&path)
+            .output()?;
+        ensure!(
+            git.status.success(),
+            "Local source must be in a Git checkout"
+        );
+        let repository = PathBuf::from(String::from_utf8(git.stdout)?.trim()).canonicalize()?;
+        ensure!(
+            config.allowed_source_roots.iter().any(|root| root
+                .canonicalize()
+                .is_ok_and(|root| repository.starts_with(root))),
+            "Local repository is outside configured roots"
+        );
+    } else {
+        ensure!(
+            url.scheme() == "https"
+                && url.username().is_empty()
+                && url.password().is_none()
+                && url.query().is_none()
+                && url.fragment().is_none()
+                && url.port().is_none(),
+            "Expected an HTTPS repository URL without credentials or options"
+        );
+        ensure!(
+            config
+                .allowed_repository_hosts
+                .iter()
+                .any(|h| Some(h.as_str()) == url.host_str()),
+            "Repository host is not allowed"
+        );
+    }
     let revision = &request.source.revision;
     ensure!(
         !revision.is_empty()
@@ -167,14 +210,50 @@ pub fn git(args: &[&str], directory: &Path, log: &Path) -> Result<()> {
 }
 
 pub fn checkout(request: &Onboard, dir: &Path) -> Result<(PathBuf, String)> {
+    let url = url::Url::parse(&request.source.repository_url)?;
+    let mut local_subpath = PathBuf::new();
+    let repository_url = if url.scheme() == "file" {
+        let selected = url
+            .to_file_path()
+            .map_err(|_| anyhow::anyhow!("Invalid local source"))?
+            .canonicalize()?;
+        let output = Command::new("git")
+            .args([
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "safe.directory=*",
+                "rev-parse",
+                "--show-toplevel",
+            ])
+            .current_dir(&selected)
+            .output()?;
+        ensure!(
+            output.status.success(),
+            "Local source must be in a Git checkout"
+        );
+        let root = PathBuf::from(String::from_utf8(output.stdout)?.trim()).canonicalize()?;
+        local_subpath = selected.strip_prefix(&root)?.to_path_buf();
+        root.to_string_lossy().to_string()
+    } else {
+        request.source.repository_url.clone()
+    };
+    let protocol = if url.scheme() == "file" {
+        "protocol.file.allow=always"
+    } else {
+        "protocol.file.allow=never"
+    };
     git(
         &[
+            "-c",
+            protocol,
             "clone",
             "--depth",
             "1",
             "--no-checkout",
+            "--no-hardlinks",
             "--",
-            &request.source.repository_url,
+            &repository_url,
             "repository",
         ],
         dir,
@@ -185,7 +264,15 @@ pub fn checkout(request: &Onboard, dir: &Path) -> Result<(PathBuf, String)> {
         "HEAD"
     } else {
         git(
-            &["fetch", "--depth", "1", "origin", &request.source.revision],
+            &[
+                "-c",
+                protocol,
+                "fetch",
+                "--depth",
+                "1",
+                "origin",
+                &request.source.revision,
+            ],
             &repository,
             &dir.join("fetch.log"),
         )?;
@@ -203,7 +290,10 @@ pub fn checkout(request: &Onboard, dir: &Path) -> Result<(PathBuf, String)> {
     ensure!(commit.status.success(), "Cannot read checked-out revision");
     let commit = String::from_utf8(commit.stdout)?.trim().to_owned();
     let root = repository.canonicalize()?;
-    let selected = root.join(&request.source.sub_path).canonicalize()?;
+    let selected = root
+        .join(local_subpath)
+        .join(&request.source.sub_path)
+        .canonicalize()?;
     ensure!(
         selected.starts_with(&root) && selected.is_dir(),
         "Source directory is outside the repository"

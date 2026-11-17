@@ -29,7 +29,7 @@ permission:
   enabled: false
 catalog:
   rules:
-    - allow: [Component, API, Group, Location]
+    - allow: [Component, API, Group, Location, Resource]
   locations:
     - type: file
       target: /opt/app-root/src/application-catalog.yaml

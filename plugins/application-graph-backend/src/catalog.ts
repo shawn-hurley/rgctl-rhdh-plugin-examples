@@ -1,7 +1,7 @@
 export interface Entity {
   kind: string;
   metadata: {name: string; namespace?: string; annotations?: Record<string,string>};
-  spec?: {providesApis?: string[]; consumesApis?: string[]};
+  spec?: {providesApis?: string[]; consumesApis?: string[]; dependsOn?: string[]; dependencyOf?: string[]; subcomponentOf?: string};
   relations?: {type: string; targetRef: string}[];
 }
 export class HttpError extends Error {
@@ -17,9 +17,10 @@ export function entityRef(value: unknown, kind = 'component', namespace = 'defau
   return `${kind}:${scoped[0]}/${scoped[1]}`.toLowerCase();
 }
 export function source(location: string | undefined) {
-  if (!location?.startsWith('url:')) throw new HttpError(400,'SOURCE_LOCATION_REQUIRED','Set backstage.io/source-location to the application repository URL');
+  if (!location || (!location.startsWith('url:') && !location.startsWith('file:'))) throw new HttpError(400,'SOURCE_LOCATION_REQUIRED','Set backstage.io/source-location to the application repository URL');
   let url: URL;
-  try { url = new URL(location.slice(4)); } catch { throw new HttpError(400,'INVALID_SOURCE','Invalid source URL'); }
+  try { url = new URL(location.startsWith('url:')?location.slice(4):location); } catch { throw new HttpError(400,'INVALID_SOURCE','Invalid source URL'); }
+  if (url.protocol === 'file:' && !url.username && !url.password && !url.search && !url.hash && !url.hostname) return {repositoryUrl:url.toString(),revision:'HEAD',subPath:''};
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.port) throw new HttpError(400,'INVALID_SOURCE','Use an HTTPS source URL without credentials or options');
   const parts = url.pathname.split('/').filter(Boolean);
   let revision = 'HEAD';
@@ -53,5 +54,7 @@ export function catalogRelations(entity: Entity, requested: string) {
   return {entityRef: canonical, providesApis: apis('provides'), consumesApis: apis('consumes')};
 }
 export function onboardingRequest(entity: Entity, requested: string) {
-  return {...catalogRelations(entity, requested), source: source(entity.metadata.annotations?.['backstage.io/source-location'])};
+  const selected = source(entity.metadata.annotations?.['backstage.io/source-location']);
+  return {...catalogRelations(entity, requested), source: {...selected,
+    ...(entity.metadata.annotations?.['application-graph.io/maven-sources']==='true'?{includeMavenDependencies:true}:{})}};
 }

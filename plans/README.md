@@ -2,6 +2,9 @@
 
 The new [application onboarding work](08-application-onboarding.md) adds a separate
 Rust graph service and dynamic backend for catalog-connected Java applications.
+The [catalog relationship examples](09-catalog-relationships.md) extend that
+workflow with component/resource dependencies, subcomponents, transitive Maven
+libraries and interface injection.
 
 ## Goal
 

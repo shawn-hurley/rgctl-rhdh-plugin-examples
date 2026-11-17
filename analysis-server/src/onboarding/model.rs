@@ -7,6 +7,9 @@ use std::path::PathBuf;
 pub struct Config {
     pub data_dir: PathBuf,
     pub allowed_repository_hosts: Vec<String>,
+    #[serde(default)]
+    pub allowed_source_roots: Vec<PathBuf>,
+    pub maven_repository: Option<PathBuf>,
     #[serde(default = "queue_capacity")]
     pub queue_capacity: usize,
 }
@@ -22,6 +25,11 @@ pub struct Source {
     pub revision: String,
     #[serde(default)]
     pub sub_path: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub include_maven_dependencies: bool,
+}
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 fn revision() -> String {
     "HEAD".into()
@@ -91,6 +99,45 @@ pub struct Manifest {
     pub consumes_apis: Vec<String>,
     pub operations: Vec<Operation>,
     pub diagnostics: Vec<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_coordinate: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub artifacts: Vec<LibrarySource>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dependency_traces: Vec<DependencyTrace>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resource_uses: Vec<ResourceUse>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibrarySource {
+    pub coordinate: String,
+    pub prefix: String,
+    pub direct: bool,
+    pub status: String,
+    pub source_sha256: Option<String>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodePath {
+    pub symbols: Vec<Symbol>,
+    pub edges: Vec<Value>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DependencyTrace {
+    pub coordinate: String,
+    pub paths: Vec<CodePath>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceUse {
+    pub resource_type: String,
+    pub uri: Option<String>,
+    pub operation: String,
+    pub symbol: Symbol,
+    pub application_paths: Vec<CodePath>,
 }
 
 pub fn now() -> u64 {

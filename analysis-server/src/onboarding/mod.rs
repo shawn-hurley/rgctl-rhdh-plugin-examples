@@ -1,9 +1,11 @@
 mod connections;
+mod dependencies;
 mod index;
 mod model;
 mod store;
 #[cfg(test)]
 mod tests;
+mod trace;
 
 use axum::{
     Json, Router,
@@ -262,7 +264,14 @@ fn execute(config: &Config, id: &str) -> anyhow::Result<()> {
     store::write(&dir.join("job.json"), &job)?;
     let result = (|| -> anyhow::Result<Manifest> {
         let (source, commit) = store::checkout(&job.request, &dir)?;
-        index::index(&job.request, id, &dir, &source, commit)
+        index::index(
+            &job.request,
+            id,
+            &dir,
+            &source,
+            commit,
+            config.maven_repository.clone(),
+        )
     })();
     match result {
         Ok(manifest) => {

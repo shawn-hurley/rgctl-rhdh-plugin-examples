@@ -28,7 +28,8 @@ test('source parsing supports root repositories and rejects embedded credentials
   assert.equal(source('url:https://github.com/acme/service').revision,'HEAD');
   assert.deepEqual(source('url:https://gitlab.example/acme/platform/-/tree/release/app'),{repositoryUrl:'https://gitlab.example/acme/platform.git',revision:'release',subPath:'app'});
   assert.throws(()=>source('url:https://token@github.com/acme/app'));
-  assert.throws(()=>source('file:/private/source'));
+  assert.deepEqual(source('file:/examples/repository'),{repositoryUrl:'file:///examples/repository',revision:'HEAD',subPath:''});
+  assert.throws(()=>source('url:file://remote/private/source'));
 });
 test('onboarding ignores caller-supplied sources and API relations',async t=>{
   let sent;

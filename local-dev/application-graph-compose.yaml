@@ -9,6 +9,7 @@ services:
       - "127.0.0.1:17071:7071"
     volumes:
       - ./application-graph-config.json:/config/service.json:ro,z
+      - ${HOME}/.m2:/root/.m2:z
       - application-graphs:/data
   install-plugins:
     image: ${RHDH_IMAGE:-quay.io/rhdh-community/rhdh:1.10.6}
