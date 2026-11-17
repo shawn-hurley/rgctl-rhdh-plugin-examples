@@ -5,6 +5,7 @@ affect application source code.
 
 - [Local development setup](local-dev/README.md)
 - [Phased implementation plan](plans/README.md)
+- [Application onboarding and persisted API-connected graphs](analysis-server/APPLICATION-GRAPH.md)
 - [Demo evaluation and evidence](demo-evaluation/README.md)
 
 The dynamic plugin provides a testing-focus form and clickable code-path graph,

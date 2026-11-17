@@ -1,0 +1,39 @@
+name: application-graph-local
+services:
+  application-graph:
+    image: localhost/application-graph:dev
+    environment:
+      APPLICATION_GRAPH_CONFIG: /config/service.json
+      APPLICATION_GRAPH_SERVICE_TOKEN: application-graph-local-service
+    ports:
+      - "127.0.0.1:17071:7071"
+    volumes:
+      - ./application-graph-config.json:/config/service.json:ro,z
+      - application-graphs:/data
+  install-plugins:
+    image: ${RHDH_IMAGE:-quay.io/rhdh-community/rhdh:1.10.6}
+    user: "0"
+    entrypoint: ["/bin/sh", "./install-dynamic-plugins.sh", "/dynamic-plugins-root"]
+    volumes:
+      - ./application-graph-plugins.yaml:/opt/app-root/src/dynamic-plugins.yaml:ro,z
+      - ../plugins:/opt/app-root/src/local-plugins:ro,z
+      - dynamic-plugins:/dynamic-plugins-root
+  rhdh:
+    image: ${RHDH_IMAGE:-quay.io/rhdh-community/rhdh:1.10.6}
+    entrypoint: ["node", "--no-node-snapshot", "packages/backend", "--config", "local-config.yaml", "--config", "dynamic-plugins-root/app-config.dynamic-plugins.yaml"]
+    environment:
+      NODE_ENV: development
+    ports:
+      - "127.0.0.1:17007:7007"
+    volumes:
+      - ./application-graph-app-config.yaml:/opt/app-root/src/local-config.yaml:ro,z
+      - ./application-catalog.yaml:/opt/app-root/src/application-catalog.yaml:ro,z
+      - dynamic-plugins:/opt/app-root/src/dynamic-plugins-root:ro
+    depends_on:
+      application-graph:
+        condition: service_started
+      install-plugins:
+        condition: service_completed_successfully
+volumes:
+  application-graphs:
+  dynamic-plugins:

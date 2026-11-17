@@ -1,5 +1,8 @@
 # Dependency Impact Dynamic Plugin
 
+The new [application onboarding work](08-application-onboarding.md) adds a separate
+Rust graph service and dynamic backend for catalog-connected Java applications.
+
 ## Goal
 
 Compare two versions of a dependency and show affected application source in a

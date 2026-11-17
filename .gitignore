@@ -19,6 +19,7 @@ analysis-server/target/
 /local-dev/verify-demo-browser.cjs
 /local-dev/DEMO-RUNBOOK.md
 /recordings/
+/.worktrees/
 **/__pycache__/
 **/*.py[cod]
 **/target/

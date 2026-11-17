@@ -1,0 +1,4 @@
+plugins:
+  - package: ./local-plugins/application-graph-backend/dist-dynamic
+    disabled: false
+    forceDownload: true

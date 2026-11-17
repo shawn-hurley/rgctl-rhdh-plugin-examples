@@ -3963,6 +3963,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@internal/backstage-plugin-application-graph-backend@workspace:plugins/application-graph-backend":
+  version: 0.0.0-use.local
+  resolution: "@internal/backstage-plugin-application-graph-backend@workspace:plugins/application-graph-backend"
+  dependencies:
+    "@backstage/backend-plugin-api": "npm:~1.8.0"
+    "@backstage/cli": "npm:~0.36.0"
+    "@red-hat-developer-hub/cli": "npm:~1.10.8"
+    express: "npm:^4.21.2"
+  languageName: unknown
+  linkType: soft
+
 "@internal/backstage-plugin-dependency-impact-backend@workspace:plugins/dependency-impact-backend":
   version: 0.0.0-use.local
   resolution: "@internal/backstage-plugin-dependency-impact-backend@workspace:plugins/dependency-impact-backend"

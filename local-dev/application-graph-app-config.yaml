@@ -1,0 +1,43 @@
+app:
+  title: Application Graph Development
+  baseUrl: http://localhost:17007
+organization:
+  name: Application Graph
+backend:
+  baseUrl: http://localhost:17007
+  listen:
+    host: 0.0.0.0
+    port: 7007
+  cors:
+    origin: http://localhost:17007
+    credentials: true
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+  auth:
+    externalAccess:
+      - type: static
+        options:
+          token: application-graph-local-development
+          subject: local-developer
+auth:
+  environment: development
+  providers:
+    guest:
+      dangerouslyAllowOutsideDevelopment: true
+permission:
+  enabled: false
+catalog:
+  rules:
+    - allow: [Component, API, Group, Location]
+  locations:
+    - type: file
+      target: /opt/app-root/src/application-catalog.yaml
+techdocs:
+  builder: external
+dynamicPlugins:
+  rootDirectory: dynamic-plugins-root
+applicationGraph:
+  service:
+    baseUrl: http://application-graph:7071
+    token: application-graph-local-service

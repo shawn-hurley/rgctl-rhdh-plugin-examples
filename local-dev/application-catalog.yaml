@@ -1,0 +1,55 @@
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: application-developers
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: spring-quoters
+  description: Spring's existing HTTP quotation provider
+  annotations:
+    backstage.io/source-location: url:https://github.com/spring-guides/quoters
+spec:
+  type: service
+  lifecycle: experimental
+  owner: application-developers
+  providesApis:
+    - quotes-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: spring-quotes-client
+  description: Spring's existing REST-consuming Java application
+  annotations:
+    backstage.io/source-location: url:https://github.com/spring-guides/gs-consuming-rest/tree/main/complete
+spec:
+  type: service
+  lifecycle: experimental
+  owner: application-developers
+  consumesApis:
+    - quotes-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: quotes-api
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: application-developers
+  definition: |
+    openapi: 3.0.3
+    info:
+      title: Quoters
+      version: '1'
+    paths:
+      /api/random:
+        get:
+          responses:
+            '200':
+              description: A random quotation

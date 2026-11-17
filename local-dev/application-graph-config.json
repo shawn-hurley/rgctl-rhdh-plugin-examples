@@ -1,0 +1,5 @@
+{
+  "dataDir": "/data",
+  "allowedRepositoryHosts": ["github.com"],
+  "queueCapacity": 8
+}
