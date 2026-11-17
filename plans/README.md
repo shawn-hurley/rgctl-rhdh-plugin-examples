@@ -122,3 +122,5 @@ See the [binary verification](../demo-evaluation/evidence/binary-verification/RE
 Public-crate integration and the Rust JSON API are Phase 3 work. Exact per-call
 columns and occurrence multiplicity are outside the MVP scope. Recorded source
 identity experiments are retained as evidence without an additional prerequisite.
+
+- [Import-driven catalog enrichment](10-catalog-import-enrichment.md) — automatic graph onboarding and standard dependency/API fields.

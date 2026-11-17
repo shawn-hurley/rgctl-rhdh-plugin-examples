@@ -2,6 +2,9 @@ import { coreServices, createBackendPlugin } from '@backstage/backend-plugin-api
 import { GraphClient } from './client';
 import { Entity, HttpError } from './catalog';
 import { createRouter } from './router';
+export { GraphClient } from './client';
+export { onboardingRequest, entityRef } from './catalog';
+export type { Entity } from './catalog';
 
 export default createBackendPlugin({
   pluginId: 'application-graph',

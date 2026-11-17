@@ -11,6 +11,10 @@ Components, and connects applications using live processed catalog API relations
 and component `partOf`/`hasPart`, with source paths where the stored Java/Maven
 graph provides evidence. Hierarchy membership stays separate from calls.
 
+The companion [catalog module](../catalog-backend-module-application-graph/README.md)
+starts graph onboarding during ordinary catalog imports and enriches standard
+dependency/API fields from the results.
+
 ```yaml
 applicationGraph:
   service:

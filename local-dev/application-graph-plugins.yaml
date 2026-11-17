@@ -2,3 +2,6 @@ plugins:
   - package: ./local-plugins/application-graph-backend/dist-dynamic
     disabled: false
     forceDownload: true
+  - package: ./local-plugins/catalog-backend-module-application-graph/dist-dynamic
+    disabled: false
+    forceDownload: true

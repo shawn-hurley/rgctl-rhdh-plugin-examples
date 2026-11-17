@@ -211,3 +211,12 @@ The [catalog relationship validation](CATALOG-RELATIONSHIP-VALIDATION.md) record
 the additional Maven, resource and hierarchy checks. The example applications,
 catalog descriptors and walkthrough scripts used for those checks are local
 development assets intentionally excluded from Git.
+
+## Automatic enrichment during catalog import
+
+Install the companion [dynamic catalog module](../plugins/catalog-backend-module-application-graph/README.md)
+and opt Components in with `application-graph.io/enabled: 'true'`. The standard
+import wizard then starts asynchronous onboarding. Subsequent processing merges
+Maven/resource dependencies and HTTP API provider/consumer evidence into standard
+catalog fields without modifying repository descriptors. See the module guide
+for endpoint bindings, generated API definitions, job status and retry behavior.

@@ -46,3 +46,24 @@ implementation's resource has no application source path in that graph.
 Native rgctl remains at `72823ed2fb4c5aa3f5fa1614b08d7cecd545ef0b`; no native
 changes are part of this feature. Generated logs, graph manifests, runtime
 observations and screenshots remain in the ignored development-output directory.
+
+## Import-driven enrichment
+
+All six Components were subsequently imported individually through Chrome's
+**Import an existing Git repository** wizard, starting from descriptors with no
+`dependsOn`, `providesApis` or `consumesApis` fields. The dynamic catalog module
+submitted graph jobs automatically. Catalog processing populated standard fields
+and Backstage rendered them in its built-in Dependencies/API tabs:
+
+- File storage and workflow acquire their reachable Resource dependencies.
+- Orders and Audit acquire their direct workflow dependency and only their own
+  injected resource dependency.
+- The existing Spring provider acquires `providesApis` for a generated OpenAPI
+  entity; its client acquires `consumesApis` and a provider Component dependency.
+- The generated API relation also produces a source-linked HTTP connection.
+
+Nine new enrichment/processor tests and all 13 existing backend tests pass.
+Type checking and dynamic module export pass. Native Rust graph extraction was
+unchanged for this addition. HTTP identity uses provider base-URL bindings, with
+an explicit client base URL for the existing client's relative request facts.
+Before/after catalog records and browser screenshots remain local and ignored.

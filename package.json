@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "build:plugins": "tsc --emitDeclarationOnly && yarn workspaces foreach -A --exclude dependency-impact-rhdh run build",
-    "export:plugins": "tsc --emitDeclarationOnly && yarn workspace @internal/backstage-plugin-dependency-impact export-dynamic && yarn workspace @internal/backstage-plugin-dependency-impact-backend export-dynamic && yarn workspace @internal/backstage-plugin-application-graph-backend export-dynamic",
+    "export:plugins": "tsc --emitDeclarationOnly && yarn workspace @internal/backstage-plugin-dependency-impact export-dynamic && yarn workspace @internal/backstage-plugin-dependency-impact-backend export-dynamic && yarn workspace @internal/backstage-plugin-application-graph-backend export-dynamic && yarn workspace @internal/backstage-plugin-catalog-backend-module-application-graph export-dynamic",
     "local:up": "podman compose -f local-dev/compose.yaml up -d --no-build",
     "local:down": "podman compose -f local-dev/compose.yaml down",
     "local:reload": "podman compose -f local-dev/compose.yaml run --rm install-plugins && podman compose -f local-dev/compose.yaml restart rhdh"

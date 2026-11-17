@@ -24,6 +24,7 @@ analysis-server/target/
 /local-dev/configure-catalog-examples.py
 /local-dev/verify-catalog-relations.py
 /local-dev/verify-catalog-relations.cjs
+/local-dev/verify-catalog-import.cjs
 /recordings/
 /.worktrees/
 **/__pycache__/
