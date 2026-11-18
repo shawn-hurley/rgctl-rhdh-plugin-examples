@@ -4,7 +4,7 @@
 
 This repository contains two dynamic RHDH/Backstage workflows:
 
-- Dependency Impact: `plugins/dependency-impact`,
+- Dependency Impact (Java/Maven and Go modules): `plugins/dependency-impact`,
   `plugins/dependency-impact-backend`, and the comparison API.
 - Application Graph: `plugins/application-graph-backend`,
   `plugins/catalog-backend-module-application-graph`, and the
@@ -15,7 +15,10 @@ Reuse its shared library, authentication and worker limiter. Import rgctl as
 Rust crates; do not replace this integration with CLI subprocesses, SCIP, or external indexers.
 Catalog enrichment belongs in the catalog module; authorized browser-facing
 requests go through the Backstage backend, with Rust service credentials kept
-backend-only. Preserve source/graph provenance and existing detected impacts.
+backend-only. Preserve source/graph provenance and existing detected impacts. Go comparison
+requests use `dependency.modulePath`; Maven coordinates keep their existing
+shape. Both use the same diff/impact/report pipeline. Application Graph
+onboarding remains Java/Maven. See `analysis-server/GO.md`.
 
 ## rgctl source selection
 

@@ -4,7 +4,7 @@ export interface ComparisonInput {
   id: string;
   label: string;
   description: string;
-  packageManager: 'maven';
+  packageManager: 'maven' | 'gomod';
   entityRef: string;
   applicationRevision: string;
   dependency: {
@@ -12,7 +12,7 @@ export interface ComparisonInput {
     artifactId: string;
     type: 'jar';
     classifier: null;
-  };
+  } | { modulePath: string };
   /** Advertised by discovery; analysis independently resolves the actual baseline. */
   baselineVersion: string;
   targetVersion: string;

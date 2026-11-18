@@ -100,14 +100,20 @@ components:
           description: Server-configured source revision; demo-baseline selects the local demo input whose digest is recorded in the report
           example: demo-baseline
         dependency:
-          type: object
-          additionalProperties: false
-          required: [groupId, artifactId]
-          properties:
-            groupId: { type: string, example: io.rgctl.demo }
-            artifactId: { type: string, example: pricing }
-            type: { type: string, enum: [jar], default: jar }
-            classifier: { type: string, nullable: true, description: 'Only absent/null is supported in this version' }
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [groupId, artifactId]
+              properties:
+                groupId: { type: string, example: io.rgctl.demo }
+                artifactId: { type: string, example: pricing }
+                type: { type: string, enum: [jar], default: jar }
+                classifier: { type: string, nullable: true, description: 'Only absent/null is supported' }
+            - type: object
+              additionalProperties: false
+              required: [modulePath]
+              properties:
+                modulePath: { type: string, example: example.test/rgctl/pricing }
         targetVersion: { type: string, example: 1.1.0 }
         strategy: { type: string, enum: [direct-upgrade, transitive-override] }
     Job:
@@ -141,7 +147,7 @@ components:
         signature: { type: string, nullable: true }
         resolution: { type: string, enum: [resolved-static, ambiguous-overload] }
         sourceId: { type: string }
-        file: { type: string, description: Path relative to the owning application Java source root or source JAR }
+        file: { type: string, description: Path relative to the owning application source root, source JAR or Go module }
         startLine: { type: integer, nullable: true }
         endLine: { type: integer, nullable: true }
     SourceBlock:

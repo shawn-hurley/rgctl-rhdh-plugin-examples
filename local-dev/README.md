@@ -17,7 +17,8 @@ Install Git, Python 3, Node.js 22+, Yarn 4 and Podman Compose. On macOS, start t
 Podman machine from your own terminal first; these instructions manage containers
 only. Native service builds also need Rust satisfying rgctl's `rust-version`
 (currently 1.99 or newer). Native Maven acquisition/comparison and local demo
-preparation need Maven and JDK 17+. Container images include their runtime tools.
+preparation need Maven and JDK 17+; native Go comparisons need Go installed.
+Container images include their runtime tools.
 Use normal dependency caches; there is no repository toolchain pin.
 
 Select the combined rgctl branch published to the fork:
@@ -125,7 +126,7 @@ versions/checksums.
 
 ## Dependency Impact inputs
 
-The UI discovery manifest lists eight local Java/Maven demos; the shared service
+The UI discovery manifest lists eight Java/Maven and six Go module demos; the shared service
 starts with no configured comparison applications. The demo applications,
 qualification fixtures, preparation scripts and catalog walkthrough files are
 intentionally ignored. They are not supplied by a fresh Git clone.
@@ -145,21 +146,27 @@ an affected testing area and inspect its call graph and full source block.
 **Download report** saves the complete comparison. Components annotated with
 `rgctl.io/evaluation-scenario` also expose the catalog tab.
 
+Go requests use `dependency: {modulePath: "example.org/library"}`; Maven
+requests retain `groupId`/`artifactId`. Go module acquisition uses normal
+`GOPROXY`/`GOPRIVATE`/checksum settings; `comparisons.goProxy` can select a
+configured module proxy. See the [Go guide](../analysis-server/GO.md).
+
 For your own inputs, configure these pieces together before starting the stack:
 
-1. Mount a standalone Maven module into the shared Rust container and add its
+1. Mount a standalone Maven or Go module into the shared Rust container and add its
    canonical Component reference to `service-config.json` under
    `comparisons.applications`,
    with a container-visible `path` and matching `revision` label.
 2. Register that Component through the catalog locations configured in
    `app-config.yaml`. Replace the default demo catalog mount/location when the
    local assets are absent.
+
 3. Supply UI discovery choices through
    [the discovery provider](../plugins/dependency-impact-backend/src/inputDiscovery.ts)
    and its [typed input manifest](../plugins/dependency-impact-backend/src/demoInputs.ts).
    Current discovery is a controlled manifest, rather than an Artifactory lookup.
-4. Make binary/source artifacts available through the normal Maven repository
-   or Maven settings. The service resolves the effective versions independently.
+4. Make artifacts available through normal Maven settings/repositories or the
+   configured Go module proxy. The service resolves effective versions independently.
 
 Use an ignored Compose/config override for local applications and mounts; keep
 application sources and demo fixtures outside tracked plugin directories.

@@ -12,6 +12,7 @@ services:
     volumes:
       - ./service-config.json:/config/service.json:ro,z
       - ${HOME}/.m2:/root/.m2:z
+      - ${HOME}/go/pkg/mod:/root/go/pkg/mod:z
       - comparison-data:/data/comparisons
       - graph-data:/data/application-graphs
     networks: [backend]

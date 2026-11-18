@@ -143,4 +143,88 @@ export const demoInputs: readonly ComparisonInput[] = [
     "targetVersion": "1.0.1",
     "strategy": "direct-upgrade"
   },
+  {
+  "id": "go-public",
+  "label": "Go checkout \u2014 public function update",
+  "description": "A public Quote change reaches checkout code.",
+  "packageManager": "gomod",
+  "entityRef": "component:default/dependency-impact-go-public",
+  "applicationRevision": "demo-baseline",
+  "dependency": {
+    "modulePath": "example.test/rgctl/public"
+  },
+  "baselineVersion": "v1.0.0",
+  "targetVersion": "v1.0.1",
+  "strategy": "direct-upgrade"
+},
+  {
+  "id": "go-patch",
+  "label": "Go validation \u2014 patch release",
+  "description": "A v1.0.1 validation fix changes behavior without changing its signature.",
+  "packageManager": "gomod",
+  "entityRef": "component:default/dependency-impact-go-patch",
+  "applicationRevision": "demo-baseline",
+  "dependency": {
+    "modulePath": "example.test/rgctl/patch"
+  },
+  "baselineVersion": "v1.0.0",
+  "targetVersion": "v1.0.1",
+  "strategy": "direct-upgrade"
+},
+  {
+  "id": "go-internal",
+  "label": "Go checkout \u2014 internal helper update",
+  "description": "An unexported normalize change reaches Run through the unchanged public Quote function.",
+  "packageManager": "gomod",
+  "entityRef": "component:default/dependency-impact-go-internal",
+  "applicationRevision": "demo-baseline",
+  "dependency": {
+    "modulePath": "example.test/rgctl/internal"
+  },
+  "baselineVersion": "v1.0.0",
+  "targetVersion": "v1.0.1",
+  "strategy": "direct-upgrade"
+},
+  {
+  "id": "go-no-impact",
+  "label": "Go pricing \u2014 unaffected update",
+  "description": "Only UnusedPreview changes; the application calls the unchanged Quote path.",
+  "packageManager": "gomod",
+  "entityRef": "component:default/dependency-impact-go-no-impact",
+  "applicationRevision": "demo-baseline",
+  "dependency": {
+    "modulePath": "example.test/rgctl/no-impact"
+  },
+  "baselineVersion": "v1.0.0",
+  "targetVersion": "v1.0.1",
+  "strategy": "direct-upgrade"
+},
+  {
+  "id": "go-transitive",
+  "label": "Go notification \u2014 transitive override",
+  "description": "Bump token-core to v1.0.1 while template stays at v1.0.0; the unchanged wrapper carries the impact to Run.",
+  "packageManager": "gomod",
+  "entityRef": "component:default/dependency-impact-go-transitive",
+  "applicationRevision": "demo-baseline",
+  "dependency": {
+    "modulePath": "example.test/rgctl/token-core"
+  },
+  "baselineVersion": "v1.0.0",
+  "targetVersion": "v1.0.1",
+  "strategy": "transitive-override"
+},
+  {
+  "id": "go-injected",
+  "label": "Go checkout \u2014 injected interface implementation",
+  "description": "A changed RiskPolicy implementation is injected as Scorer and used by Checkout.Submit.",
+  "packageManager": "gomod",
+  "entityRef": "component:default/dependency-impact-go-injected",
+  "applicationRevision": "demo-baseline",
+  "dependency": {
+    "modulePath": "example.test/rgctl/risk"
+  },
+  "baselineVersion": "v1.0.0",
+  "targetVersion": "v1.0.1",
+  "strategy": "direct-upgrade"
+},
 ];

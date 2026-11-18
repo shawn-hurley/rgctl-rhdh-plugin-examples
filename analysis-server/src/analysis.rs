@@ -94,22 +94,27 @@ impl Snapshot {
     }
 }
 
-fn index(
+fn index_with_language(
     root: PathBuf,
     label: &str,
     owners: BTreeMap<String, Value>,
     diagnostics: &mut Vec<Value>,
+    language: &str,
 ) -> Result<Snapshot> {
     let mut registry = LanguageRegistry::new();
     let java = Arc::new(crate::java::ObservedJava::new()?);
-    registry.register_language_plugin(java.clone());
+    if language == "go" {
+        registry.register_language_plugin(Arc::new(rgctl_lang_go::GoPlugin::new()?));
+    } else {
+        registry.register_language_plugin(java.clone());
+    }
     let mut config = PipelineConfig {
         show_progress: false,
         thread_count: Some(4),
         facts_cache: false,
         ..Default::default()
     };
-    config.discovery.languages = Some(vec!["java".into()]);
+    config.discovery.languages = Some(vec![language.into()]);
     // Scan only prepared application/dependency Java inputs, streaming the graph
     // to a columnar snapshot; no CLI process or whole-graph JSON export.
     let pipeline = ProcessingPipeline::with_config(Arc::new(registry), config);
@@ -148,7 +153,7 @@ fn index(
             .collect::<Vec<_>>()
             .join(", ")
     );
-    ensure!(!functions.is_empty(), "No Java functions were extracted");
+    ensure!(!functions.is_empty(), "No functions were extracted");
     let ambiguous = java
         .ambiguities
         .lock()
@@ -228,13 +233,12 @@ fn function_deltas(old: &Snapshot, new: &Snapshot) -> Result<Vec<FunctionDelta>>
     Ok(deltas)
 }
 
-pub fn compare(
+fn prepare_maven(
     config: &Config,
     request: &Comparison,
     dir: &Path,
     stage: &dyn Fn(&str) -> Result<()>,
-) -> Result<Value> {
-    let started = now();
+) -> Result<Prepared> {
     let app_config = config
         .applications
         .get(&request.entity_ref)
@@ -358,10 +362,56 @@ pub fn compare(
             );
         }
     }
+    Ok(Prepared {
+        snapshots_input,
+        sources,
+        diagnostics,
+        application_identity,
+        resolution: json!({"requested":request,"baseline":resolved[0].3,"candidate":resolved[1].3,"deltas":deltas}),
+    })
+}
+
+pub(crate) struct Prepared {
+    pub snapshots_input: Vec<(PathBuf, &'static str, BTreeMap<String, Value>)>,
+    pub sources: Vec<Value>,
+    pub diagnostics: Vec<Value>,
+    pub application_identity: Value,
+    pub resolution: Value,
+}
+
+pub fn compare(
+    config: &Config,
+    request: &Comparison,
+    dir: &Path,
+    stage: &dyn Fn(&str) -> Result<()>,
+) -> Result<Value> {
+    let started = now();
+    let language = if matches!(request.dependency, crate::model::Coordinate::Go(_)) {
+        "go"
+    } else {
+        "java"
+    };
+    let Prepared {
+        snapshots_input,
+        sources,
+        mut diagnostics,
+        application_identity,
+        resolution,
+    } = if language == "go" {
+        crate::golang::prepare(config, request, dir, stage)?
+    } else {
+        prepare_maven(config, request, dir, stage)?
+    };
     stage("indexing")?;
     let mut snapshots = vec![];
     for (root, label, owners) in snapshots_input {
-        snapshots.push(index(root, label, owners, &mut diagnostics)?);
+        snapshots.push(index_with_language(
+            root,
+            label,
+            owners,
+            &mut diagnostics,
+            language,
+        )?);
     }
     let old = &snapshots[0];
     let new = &snapshots[1];
@@ -557,16 +607,89 @@ pub fn compare(
     Ok(
         json!({"schemaVersion":"1","comparisonId":dir.file_name().and_then(|s|s.to_str()),
         "application":{"entityRef":request.entity_ref,"revision":request.application_revision,"sourceIdentity":application_identity},
-        "resolution":{"requested":request,"baseline":resolved[0].3,"candidate":resolved[1].3,"deltas":deltas},
+        "resolution":resolution,
         "dispatch":{"policy":"all-known-compatible-implementations-across-configurations","possibleEdges":dispatch.evidence(),"unresolvedInterfaceCalls":dispatch.unresolved,"originCoverage":dispatch.origin_coverage},"sources":sources,"changes":changes,"impacts":impacts.into_values().collect::<Vec<_>>(),"paths":paths,
-        "sourceBlocks":blocks.into_values().collect::<Vec<_>>(),"coverage":{"status":"partial","scope":"Java main-source functions, Calls edges and possible implementations across configurations","truncated":false},
-        "diagnostics":diagnostics,"provenance":{"serverVersion":env!("CARGO_PKG_VERSION"),"rgctlRevision":env!("RGCTL_REVISION"),"rgctlSourceSha256":env!("RGCTL_SOURCE_SHA256"),"startedAt":started,"finishedAt":now(),"options":{"language":"java","precision":"enclosing-function","applicationSources":"src/main/java","pathIdentity":"snapshot-relative","comparisonEngine":"rgctl-snapshot-diff","functionFilter":"post-diff","dispatchPolicy":"all-known-compatible-implementations-across-configurations"}}}),
+        "sourceBlocks":blocks.into_values().collect::<Vec<_>>(),"coverage":{"status":"partial","scope":if language == "go" {"Go production functions, Calls edges and possible interface implementations"} else {"Java main-source functions, Calls edges and possible implementations across configurations"},"truncated":false},
+        "diagnostics":diagnostics,"provenance":{"serverVersion":env!("CARGO_PKG_VERSION"),"rgctlRevision":env!("RGCTL_REVISION"),"rgctlSourceSha256":env!("RGCTL_SOURCE_SHA256"),"startedAt":started,"finishedAt":now(),"options":{"language":language,"precision":"enclosing-function","applicationSources":if language == "go" {"Go module production sources"} else {"src/main/java"},"pathIdentity":"snapshot-relative","comparisonEngine":"rgctl-snapshot-diff","functionFilter":"post-diff","dispatchPolicy":"all-known-compatible-implementations-across-configurations"}}}),
     )
+}
+
+#[cfg(test)]
+fn index(
+    root: PathBuf,
+    label: &str,
+    owners: BTreeMap<String, Value>,
+    diagnostics: &mut Vec<Value>,
+) -> Result<Snapshot> {
+    index_with_language(root, label, owners, diagnostics, "java")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn go_native_diff_traces_internal_changes_and_excludes_unused_functions() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let owners = BTreeMap::from([
+            ("app".into(), json!({"id":"app"})),
+            ("dependencies/pricing".into(), json!({"id":"lib"})),
+        ]);
+        let mut snapshots = vec![];
+        for (side, value) in [("baseline", 1), ("candidate", 2)] {
+            let root = temp.path().join(side);
+            fs::create_dir_all(root.join("app"))?;
+            fs::create_dir_all(root.join("dependencies/pricing"))?;
+            fs::write(
+                root.join("app/go.mod"),
+                "module example.test/app\ngo 1.20\n",
+            )?;
+            fs::write(
+                root.join("dependencies/pricing/go.mod"),
+                "module example.test/pricing\ngo 1.20\n",
+            )?;
+            fs::write(
+                root.join("app/main.go"),
+                "package main\nimport \"example.test/pricing\"\nfunc Run() int { return pricing.Quote(100) }\n",
+            )?;
+            fs::write(
+                root.join("dependencies/pricing/pricing.go"),
+                format!(
+                    "package pricing\nfunc Quote(v int) int {{ return normalize(v) }}\nfunc normalize(v int) int {{ return v + {value} }}\nfunc Unused(v int) int {{ return v - {value} }}\n"
+                ),
+            )?;
+            snapshots.push(index_with_language(
+                root,
+                side,
+                owners.clone(),
+                &mut vec![],
+                "go",
+            )?);
+        }
+        let old = &snapshots[0];
+        let new = &snapshots[1];
+        let changes = function_deltas(old, new)?;
+        assert_eq!(changes.len(), 2);
+        assert!(changes.iter().all(|c| c.kind == "modified"));
+        let dispatch = crate::dispatch::DispatchGraph::build_with_root(&old.store, &old.root)?;
+        let caller = old
+            .functions
+            .values()
+            .find(|n| n.name == "Run")
+            .context("Go caller")?;
+        for change in changes {
+            let node = change.baseline.context("Go baseline change")?;
+            let (engine, _) = dispatch.projection(&old.store, &[node.id])?;
+            let impact = engine.analyze(node.id)?.impact_zone_ids;
+            assert_eq!(impact.contains(&caller.id), node.name == "normalize");
+        }
+        assert!(
+            old.block(caller)?["text"]
+                .as_str()
+                .unwrap()
+                .contains("pricing.Quote")
+        );
+        Ok(())
+    }
     #[test]
     fn baseline_callers_and_context_survive_a_removed_method() -> Result<()> {
         let dir = tempfile::tempdir()?;

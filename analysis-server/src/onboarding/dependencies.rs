@@ -18,6 +18,7 @@ pub fn acquire(
         "Select one Maven module for dependency-source indexing"
     );
     let config = crate::model::Config {
+        go_proxy: None,
         applications: BTreeMap::new(),
         data_dir: dir.into(),
         maven_repository: repository,

@@ -2,7 +2,7 @@
 
 `rgctl-service` runs Dependency Impact and Application Graph in one Rust process.
 Both Backstage backends use its single HTTP listener and backend-only bearer
-token. The graph pipeline, Java extraction, Maven acquisition and dispatch
+token. The graph pipeline, Java/Go extraction, dependency acquisition and dispatch
 analysis are shared library code importing the selected rgctl crates.
 
 ## Build and start
@@ -31,7 +31,8 @@ RGCTL_SERVICE_TOKEN=replace-with-a-development-token \
 analysis-server/target/debug/rgctl-service
 ```
 
-Use native source/data paths in that config, with Maven, Git and JDK 17+ installed.
+Use native source/data paths in that config, with Git and the tools for the
+selected ecosystem: Maven/JDK 17+ for Java, Go for module acquisition.
 `RGCTL_SERVICE_CONFIG` defaults to `service-config.json` in the working directory;
 `RGCTL_SERVICE_LISTEN` defaults to `127.0.0.1:7070`. The container listens on
 `0.0.0.0:7070` and publishes loopback host ports only.
@@ -58,7 +59,9 @@ Use native source/data paths in that config, with Maven, Git and JDK 17+ install
 ```
 
 Configure comparison inputs under `comparisons.applications`, using the same
-entry shape as the previous analysis config. Configure repository permissions
+entry shape as the previous analysis config. For Go requests, select a
+`go.mod` application and pass `dependency.modulePath`; optional
+`comparisons.goProxy` selects a module proxy. See [Go comparisons](GO.md). Configure repository permissions
 under `applicationGraphs`. The default empty comparison list lets onboarding
 start without local demo fixtures. Source mounts/config overrides stay local.
 

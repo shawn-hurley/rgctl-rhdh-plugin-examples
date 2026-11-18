@@ -7,6 +7,7 @@ pub struct Config {
     pub applications: BTreeMap<String, Application>,
     pub data_dir: PathBuf,
     pub maven_repository: Option<PathBuf>,
+    pub go_proxy: Option<String>,
     #[serde(default = "default_queue")]
     pub queue_capacity: usize,
 }
@@ -38,8 +39,21 @@ pub enum Strategy {
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum Coordinate {
+    Maven(MavenCoordinate),
+    Go(GoCoordinate),
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct Coordinate {
+pub struct GoCoordinate {
+    pub module_path: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MavenCoordinate {
     pub group_id: String,
     pub artifact_id: String,
     #[serde(default = "jar", rename = "type")]
@@ -83,16 +97,79 @@ pub fn safe_token(s: &str) -> bool {
 }
 impl Comparison {
     pub fn validate(&self) -> anyhow::Result<()> {
-        anyhow::ensure!(
-            safe_token(&self.dependency.group_id)
-                && safe_token(&self.dependency.artifact_id)
-                && safe_token(&self.target_version),
-            "Invalid dependency coordinates or target version"
-        );
-        anyhow::ensure!(
-            self.dependency.kind == "jar" && self.dependency.classifier.is_none(),
-            "This version supports unclassified Maven JAR dependencies only"
-        );
+        match &self.dependency {
+            Coordinate::Maven(d) => {
+                anyhow::ensure!(
+                    safe_token(&d.group_id)
+                        && safe_token(&d.artifact_id)
+                        && safe_token(&self.target_version),
+                    "Invalid Maven coordinates or target version"
+                );
+                anyhow::ensure!(
+                    d.kind == "jar" && d.classifier.is_none(),
+                    "Only unclassified Maven JAR dependencies are supported"
+                );
+            }
+            Coordinate::Go(d) => {
+                anyhow::ensure!(valid_module_path(&d.module_path), "Invalid Go module path");
+                anyhow::ensure!(
+                    self.target_version.starts_with('v')
+                        && self.target_version[1..].split('.').take(3).count() == 3
+                        && safe_token(&self.target_version.replace('+', "-")),
+                    "Invalid Go module version"
+                );
+            }
+        }
         Ok(())
+    }
+}
+pub fn valid_module_path(path: &str) -> bool {
+    !path.is_empty()
+        && !path.starts_with('-')
+        && path.len() < 500
+        && path.split('/').all(|part| safe_token(part))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn coordinates_preserve_maven_and_accept_go_without_cross_format_fields() {
+        let request = |dependency| json!({"entityRef":"component:default/app","applicationRevision":"main","dependency":dependency,"targetVersion":"v1.0.1","strategy":"direct-upgrade"});
+        let java: Comparison =
+            serde_json::from_value(request(json!({"groupId":"example","artifactId":"library"})))
+                .unwrap();
+        assert!(java.validate().is_ok());
+        assert_eq!(
+            serde_json::to_value(&java).unwrap()["dependency"]["type"],
+            "jar"
+        );
+        for path in ["example.test/risk", "github.com/Example/library/v2"] {
+            let go: Comparison =
+                serde_json::from_value(request(json!({"modulePath":path}))).unwrap();
+            assert!(go.validate().is_ok());
+            assert_eq!(
+                serde_json::to_value(go).unwrap()["dependency"],
+                json!({"modulePath":path})
+            );
+        }
+        for path in [
+            "../risk",
+            "/tmp/risk",
+            "example.test//risk",
+            "example.test/risk@latest",
+            "-flag",
+        ] {
+            let go: Comparison =
+                serde_json::from_value(request(json!({"modulePath":path}))).unwrap();
+            assert!(go.validate().is_err(), "{path}");
+        }
+        assert!(
+            serde_json::from_value::<Comparison>(request(
+                json!({"modulePath":"example.test/risk","groupId":"x","artifactId":"y"})
+            ))
+            .is_err()
+        );
     }
 }

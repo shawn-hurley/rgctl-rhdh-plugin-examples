@@ -1,8 +1,8 @@
 # Dependency impact analysis service
 
 Comparison API in the shared `rgctl-service` HTTP server, importing the selected `rgctl-source` checkout's graph, pipeline,
-analysis, registry, and Java crates. Maven is invoked for dependency resolution
-and artifact acquisition; rgctl is never invoked as a subprocess.
+analysis, registry, Java and Go crates. Maven and Go are invoked for dependency resolution
+and source acquisition; rgctl is never invoked as a subprocess.
 
 The [OpenAPI contract](openapi.yaml) describes the Rust endpoints. Backstage
 exposes the comparison operations under `/api/dependency-impact/comparisons`,
@@ -13,7 +13,8 @@ Rust service credential.
 ## Run locally
 
 Prerequisites: a selected `rgctl-source` checkout, a Rust compiler meeting that
-checkout's minimum version (currently 1.99), Maven, and JDK 17 or later. No
+checkout's minimum version (currently 1.99), plus Maven/JDK 17+ for Java
+or Go for module comparisons. No
 toolchain file or isolated dependency caches are required.
 
 From the application repository root, configure `local-dev/service-config.json`
@@ -27,6 +28,10 @@ repositories and credentials use normal Maven settings.
 The `dependency-impact-server` binary remains a compatibility entry point for
 standalone comparisons using `IMPACT_CONFIG`, `IMPACT_SERVICE_TOKEN` and
 `IMPACT_LISTEN`. It must not write the same report store as the shared service.
+
+Go module requests share this API and report format. See [Go comparisons](GO.md)
+for module coordinates, acquisition and the six demo scenarios. The Maven
+behavior below is unchanged.
 
 ## Submit a comparison
 

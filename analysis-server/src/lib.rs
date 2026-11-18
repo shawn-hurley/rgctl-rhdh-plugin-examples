@@ -2,6 +2,7 @@
 mod analysis;
 pub mod comparisons;
 mod dispatch;
+mod golang;
 mod java;
 mod maven;
 pub mod model;

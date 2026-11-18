@@ -12,6 +12,7 @@ import { useApi } from "@backstage/core-plugin-api";
 import { useEntity } from "@backstage/plugin-catalog-react";
 import { useSearchParams } from "react-router-dom";
 import {
+  Coordinate,
   ComparisonInput,
   Job,
   Report,
@@ -22,11 +23,11 @@ import "./styles.css";
 
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
-const coordinate = (d: { groupId: string; artifactId: string }) =>
-  `${d.groupId}:${d.artifactId}`;
+const coordinate = (d: Coordinate) =>
+  "modulePath" in d ? d.modulePath : `${d.groupId}:${d.artifactId}`;
 const stages: Record<string, string> = {
   resolving: "Resolving dependency versions",
-  "acquiring-sources": "Acquiring Maven sources",
+  "acquiring-sources": "Acquiring dependency sources",
   indexing: "Indexing application and dependency code",
   comparing: "Comparing dependency functions",
   "tracing-impact": "Tracing application impact",
@@ -52,7 +53,7 @@ function SourceViewer({ block }: { block?: SourceBlock }) {
       </div>
       <p className="di-caption">
         {identity.artifact
-          ? `${coordinate(identity.artifact)}:${identity.artifact.version}`
+          ? `${coordinate(identity.artifact)}${"modulePath" in identity.artifact ? "@" : ":"}${identity.artifact.version}`
           : `Application revision: ${identity.revision ?? "analyzed input"}`}
       </p>
       <pre tabIndex={0} aria-label={`${block.file} source code`}>

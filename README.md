@@ -5,7 +5,7 @@ backed by one Rust service that imports rgctl as crates.
 
 | Workflow | What it does | Local UI |
 | --- | --- | --- |
-| Dependency Impact | Compare Maven dependency versions and identify application code to test, including transitive changes and injected implementations | [Dependency Impact](http://localhost:7007/dependency-impact) |
+| Dependency Impact | Compare Maven/Go dependency versions and identify application code to test, including transitive changes and injected implementations | [Dependency Impact](http://localhost:7007/dependency-impact) |
 | Application Graph | Import existing Java applications, persist their graphs, and enrich catalog dependencies, APIs, schemas and inverse relationships | [Catalog import](http://localhost:17007/catalog-import) |
 
 Both workflows use the same `rgctl-service` process, HTTP listener, credentials
@@ -76,6 +76,7 @@ For import-triggered onboarding, opt your Component descriptor in with
 
 ## Run Dependency Impact
 
+The discovery choices include Java/Maven and Go module demos.
 The configured comparison inputs use local demo applications that are deliberately
 excluded from Git. In a workspace that already has those assets:
 
@@ -88,6 +89,11 @@ Open [RHDH on port 7007](http://localhost:7007), enter as Guest, and select
 **Dependency Impact**. A fresh clone needs application inputs configured before
 using comparisons; see [local setup](local-dev/README.md#dependency-impact-inputs)
 for the catalog, service and discovery-provider configuration involved.
+
+For Go module updates, see the [Go comparison guide](analysis-server/GO.md).
+The Go examples cover public/internal changes, a patch release, a transitive
+override, interface injection and an unaffected update, each as a separate
+catalog Component.
 
 ## Development
 

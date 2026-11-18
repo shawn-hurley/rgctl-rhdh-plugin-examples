@@ -132,6 +132,9 @@ fn set_text(e: &mut Element, name: &str, value: &str) {
 }
 
 pub fn change_pom(path: &Path, request: &Comparison) -> Result<()> {
+    let crate::model::Coordinate::Maven(coordinate) = &request.dependency else {
+        bail!("Expected Maven dependency coordinates");
+    };
     let mut pom = Element::parse(fs::File::open(path)?)?;
     // xmltree stores attribute local names, so do not emit xsi:schemaLocation
     // as an unqualified Maven model attribute after serializing the POM.
@@ -151,8 +154,8 @@ pub fn change_pom(path: &Path, request: &Comparison) -> Result<()> {
     for node in &mut container.children {
         if let XMLNode::Element(dep) = node {
             if dep.name == "dependency"
-                && text(dep, "groupId") == request.dependency.group_id
-                && text(dep, "artifactId") == request.dependency.artifact_id
+                && text(dep, "groupId") == coordinate.group_id
+                && text(dep, "artifactId") == coordinate.artifact_id
                 && text(dep, "classifier").is_empty()
                 && ["", "jar"].contains(&text(dep, "type").as_str())
             {
@@ -169,8 +172,8 @@ pub fn change_pom(path: &Path, request: &Comparison) -> Result<()> {
         );
         let mut dep = Element::new("dependency");
         dep.namespace = container.namespace.clone();
-        set_text(&mut dep, "groupId", &request.dependency.group_id);
-        set_text(&mut dep, "artifactId", &request.dependency.artifact_id);
+        set_text(&mut dep, "groupId", &coordinate.group_id);
+        set_text(&mut dep, "artifactId", &coordinate.artifact_id);
         set_text(&mut dep, "version", &request.target_version);
         container.children.push(XMLNode::Element(dep));
     }
@@ -214,10 +217,8 @@ impl Artifact {
         format!("{}:{}", self.key(), self.version)
     }
     pub fn selected(&self, r: &Comparison) -> bool {
-        self.group_id == r.dependency.group_id
-            && self.artifact_id == r.dependency.artifact_id
-            && self.kind == r.dependency.kind
-            && self.classifier == r.dependency.classifier
+        matches!(&r.dependency, crate::model::Coordinate::Maven(d) if self.group_id == d.group_id
+            && self.artifact_id == d.artifact_id && self.kind == d.kind && self.classifier == d.classifier)
     }
 }
 

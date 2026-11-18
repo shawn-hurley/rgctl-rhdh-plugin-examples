@@ -4,7 +4,8 @@ import {
   FetchApi,
 } from "@backstage/core-plugin-api";
 
-export interface Coordinate {
+export type Coordinate = MavenCoordinate | { modulePath: string };
+export interface MavenCoordinate {
   groupId: string;
   artifactId: string;
   type: string;
