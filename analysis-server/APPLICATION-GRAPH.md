@@ -220,3 +220,18 @@ import wizard then starts asynchronous onboarding. Subsequent processing merges
 Maven/resource dependencies and HTTP API provider/consumer evidence into standard
 catalog fields without modifying repository descriptors. See the module guide
 for endpoint bindings, generated API definitions, job status and retry behavior.
+
+
+## API request and response schemas
+
+Provider operations now include an optional OpenAPI `contract`, and manifests
+include reusable `apiSchemas`. Both are derived from rgctl's extracted Java
+symbols/annotations and syntax trees for the same immutable source input.
+Contracts contain typed parameters, request bodies and responses; reusable
+schemas retain nested/recursive DTO references. The dynamic catalog module
+copies these into the generated API's OpenAPI definition.
+
+Reindex an existing Component to populate these fields. Previous manifests and
+snapshots still open; absent schema data preserves the existing operation-only
+behavior. See the [catalog module guide](../plugins/catalog-backend-module-application-graph/README.md#source-derived-api-schemas)
+for supported types, annotations, defaults and unresolved serialization behavior.

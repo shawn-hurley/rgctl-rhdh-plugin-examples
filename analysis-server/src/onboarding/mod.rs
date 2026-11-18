@@ -2,6 +2,7 @@ mod connections;
 mod dependencies;
 mod index;
 mod model;
+mod openapi;
 mod store;
 #[cfg(test)]
 mod tests;

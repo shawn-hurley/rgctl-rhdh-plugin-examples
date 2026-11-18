@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -77,6 +77,8 @@ pub struct Operation {
     pub path: Option<String>,
     pub url: Option<String>,
     pub symbol: Symbol,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contract: Option<Value>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -98,6 +100,8 @@ pub struct Manifest {
     pub provides_apis: Vec<String>,
     pub consumes_apis: Vec<String>,
     pub operations: Vec<Operation>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub api_schemas: BTreeMap<String, Value>,
     pub diagnostics: Vec<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_coordinate: Option<String>,

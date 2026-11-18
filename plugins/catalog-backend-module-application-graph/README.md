@@ -35,9 +35,9 @@ the next processing pass. Declared fields are preserved and merged with derived
 facts. `subcomponentOf` remains an explicit organizational declaration.
 
 HTTP providers receive a generated `<component-name>-api` API entity with an
-OpenAPI operation summary extracted from their graph, plus `providesApis`.
-The summary describes discovered routes and methods; it does not infer response
-schemas. Provider endpoint identity is configured using
+OpenAPI definition with source-derived request/response schemas, plus
+`providesApis`. The graph service resolves Java types and annotations into
+operation contracts and reusable `components.schemas`. Provider endpoint identity is configured using
 `application-graph.io/api-base-url`. Consumers acquire `consumesApis` and a
 Component dependency only when the destination origin, route and method match.
 If a graph contains relative request URLs, set
@@ -62,3 +62,33 @@ yarn workspace @internal/backstage-plugin-catalog-backend-module-application-gra
 The shared application-graph backend code is embedded in the dynamic artifact.
 Run `sh local-dev/test-catalog-import.sh` for processor/enrichment tests and the
 existing application-graph backend regression suite.
+
+
+## Source-derived API schemas
+
+New graph manifests contain optional per-operation `contract` data and shared
+`apiSchemas`. The catalog module preserves parameters, request bodies, response
+schemas, media types and declared response statuses when generating the API's
+OpenAPI 3.0.3 definition. Older stored manifests remain readable and keep their
+operation-only output until reindexed.
+
+Supported type shapes include primitives, arrays, collections, maps, enums,
+records, public JavaBean getters, public or `@JsonProperty` fields, nested DTOs,
+generic substitution, source-available inheritance and recursive `$ref` links.
+`ResponseEntity`, `HttpEntity`, `Optional`, completion stages and supported
+reactive wrappers are unwrapped. Static/transient fields and JSON-ignored
+properties are omitted; JSON renaming and read/write access are retained.
+
+Explicit Spring and JAX-RS parameter bindings identify path, query, header,
+cookie and request-body schemas. Common validation constraints and selected
+`@Schema` descriptions/formats/examples enrich properties. `@ResponseStatus`
+and declared consumes/produces values are retained. JSON is the default media
+type when no media type is declared; unresolved explicit media types use a
+wildcard with the original expression recorded.
+
+Unresolved types and recognized custom serializers/polymorphism carry
+`x-schema-unresolved` and `UNRESOLVED_API_SCHEMA` diagnostics rather than invented
+properties. This pass does not run Jackson, interpret mix-ins or application
+message-converter configuration, expand multipart/model binding, or infer
+exception-handler/error response schemas. The service uses rgctl extraction and
+its cached native syntax trees; no Java runtime or additional indexer is needed.

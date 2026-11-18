@@ -5,7 +5,8 @@ export interface Manifest {
   entityRef:string;graphVersion:string;source:unknown;projectCoordinate?:string;
   artifacts?:{coordinate:string;direct:boolean}[];
   resourceUses?:{uri?:string;applicationPaths:unknown[]}[];
-  operations:{direction:string;methods:string[];path?:string;url?:string}[];
+  operations:{direction:string;methods:string[];path?:string;url?:string;contract?:Record<string,unknown>}[];
+  apiSchemas?:Record<string,unknown>;
 }
 export function ref(entity:Entity) {
   return `${entity.kind}:${entity.metadata.namespace??'default'}/${entity.metadata.name}`.toLowerCase();
@@ -57,12 +58,14 @@ export function enrich(entity:Entity,own:Manifest,manifests:Manifest[],entities:
     const paths:Record<string,Record<string,unknown>>={};
     for(const endpoint of endpoints)for(const method of endpoint.methods) {
       if(!['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS','TRACE'].includes(method))continue;
-      (paths[endpoint.path!]??={})[method.toLowerCase()]={responses:{'200':{description:'Response'}}};
+      const contract=endpoint.contract?{...endpoint.contract}:{responses:{'200':{description:'Response'}}};
+      if('operationId' in contract&&typeof contract.operationId==='string')contract.operationId+=`-${method.toLowerCase()}`;
+      (paths[endpoint.path!]??={})[method.toLowerCase()]=contract;
     }
     api={apiVersion:'backstage.io/v1alpha1',kind:'API',metadata:{name:reference.split('/')[1],namespace:entity.metadata.namespace??'default',
       annotations:{'application-graph.io/provider':ref(entity),'application-graph.io/graph-version':own.graphVersion}},
       spec:{type:'openapi',lifecycle:entity.spec?.lifecycle??'experimental',owner:entity.spec?.owner??'unknown',
-        definition:JSON.stringify({openapi:'3.0.3',info:{title:entity.metadata.name,version:own.graphVersion},paths})}};
+        definition:JSON.stringify({openapi:'3.0.3',info:{title:entity.metadata.name,version:own.graphVersion},paths,...(own.apiSchemas&&Object.keys(own.apiSchemas).length?{components:{schemas:own.apiSchemas}}:{})})}};
   }
   const spec={...entity.spec};
   for(const [key,derived] of [['dependsOn',depends],['providesApis',provides],['consumesApis',consumes]] as const) {

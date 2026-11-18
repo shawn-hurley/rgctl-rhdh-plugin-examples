@@ -1,15 +1,15 @@
 use super::{model::*, store};
 use anyhow::{Context, Result, ensure};
-use rgctl_analysis::{cfg_builder::ParsedSourceFile, operands::*};
+use rgctl_analysis::operands::*;
 use rgctl_graph::{
     SnapshotNodeStore,
     schema::{Node, NodeType},
 };
 use rgctl_pipeline::{PipelineConfig, ProcessingPipeline};
-use rgctl_plugin_api::{LanguagePlugin, Relation, RelationType};
+use rgctl_plugin_api::{Relation, RelationType};
 use rgctl_registry::LanguageRegistry;
 use serde_json::{Value, json};
-use std::{collections::BTreeMap, fs, path::Path, sync::Arc};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 fn strings(value: Option<&Value>) -> Vec<String> {
     let Some(value) = value.and_then(Value::as_str) else {
@@ -250,7 +250,12 @@ pub fn discover(
     root: &Path,
     files: &[std::path::PathBuf],
     graph: &SnapshotNodeStore,
-) -> Result<(Vec<Operation>, Vec<Value>, Vec<ResourceUse>)> {
+) -> Result<(
+    Vec<Operation>,
+    Vec<Value>,
+    Vec<ResourceUse>,
+    BTreeMap<String, Value>,
+)> {
     let mut nodes = BTreeMap::<String, Vec<Node>>::new();
     graph.for_each_node_of_type(NodeType::Function, |n| {
         nodes
@@ -258,7 +263,7 @@ pub fn discover(
             .or_default()
             .push(n.clone());
     })?;
-    let java = rgctl_lang_java::JavaPlugin::new()?;
+    let schemas = super::openapi::JavaSchemas::read(root, files)?;
     let mut operations = vec![];
     let mut diagnostics = vec![];
     let mut resource_uses = vec![];
@@ -267,8 +272,9 @@ pub fn discover(
         let Some(functions) = nodes.get(&name) else {
             continue;
         };
-        let source = fs::read(root.join(relative))?;
-        let extracted = java.extract_all(&root.join(relative), &source)?;
+        let unit = &schemas.units[&name];
+        let source = &unit.source;
+        let extracted = &unit.extracted;
         let annotations: Vec<_> = extracted
             .relations
             .iter()
@@ -283,7 +289,7 @@ pub fn discover(
         let resource_client = source_text.contains("java.nio.file.")
             || source_text.contains("java.sql.")
             || source_text.contains("javax.sql.");
-        let parsed = ParsedSourceFile::parse("java", &source)?;
+        let parsed = &unit.parsed;
         for node in functions {
             let location = symbol(node, root);
             let qn = location.qualified_name.as_str();
@@ -325,6 +331,7 @@ pub fn discover(
                         path: None,
                         url: None,
                         symbol: location.clone(),
+                        contract: None,
                     });
                 }
                 for path in routes {
@@ -340,6 +347,7 @@ pub fn discover(
                         path: url_path(&path),
                         url: None,
                         symbol: location.clone(),
+                        contract: None,
                     });
                 }
             }
@@ -460,6 +468,7 @@ pub fn discover(
                     path,
                     url: value,
                     symbol: location.clone(),
+                    contract: None,
                 });
             }
         }
@@ -471,7 +480,8 @@ pub fn discover(
             &b.path,
         ))
     });
-    Ok((operations, diagnostics, resource_uses))
+    let api_schemas = schemas.contracts(&mut operations, &mut diagnostics);
+    Ok((operations, diagnostics, resource_uses, api_schemas))
 }
 
 pub fn index(
@@ -527,7 +537,8 @@ pub fn index(
         stats.files_failed
     );
     let graph = SnapshotNodeStore::open(&snapshot)?;
-    let (operations, mut diagnostics, mut resource_uses) = discover(&input, &files, &graph)?;
+    let (operations, mut diagnostics, mut resource_uses, api_schemas) =
+        discover(&input, &files, &graph)?;
     for artifact in &artifacts {
         if artifact.status != "available" {
             diagnostics.push(
@@ -560,6 +571,7 @@ pub fn index(
         provides_apis: request.provides_apis.clone(),
         consumes_apis: request.consumes_apis.clone(),
         operations,
+        api_schemas,
         diagnostics,
         project_coordinate,
         artifacts,

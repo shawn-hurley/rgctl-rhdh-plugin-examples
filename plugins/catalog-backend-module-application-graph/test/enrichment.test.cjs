@@ -44,3 +44,15 @@ test('a provider that has not opted in cannot cause a dangling generated API',()
  const own=manifest('client',{operations:[{direction:'consumes',methods:['GET'],url:'http://provider:8080/api/42'}]});
  const result=enrich(c('client'),own,[manifest('provider',{operations:[endpoint]})],[provider]);assert.equal(result.entity.spec.consumesApis,undefined);
 });
+test('generated API preserves request/response contracts and reusable schemas',()=>{
+ const provider=c('provider');const schemas={'example.Order':{type:'object',properties:{id:{type:'integer',format:'int64'}}}};
+ const contract={operationId:'create-order',parameters:[{name:'trace',in:'header',required:false,schema:{type:'string'}}],requestBody:{required:true,content:{'application/json':{schema:{$ref:'#/components/schemas/example.Order'}}}},responses:{'201':{description:'Created',content:{'application/json':{schema:{$ref:'#/components/schemas/example.Order'}}}}}};
+ const result=enrich(provider,manifest('provider',{operations:[{direction:'provides',methods:['POST'],path:'/orders',contract}],apiSchemas:schemas}),[],[]);
+ const spec=JSON.parse(result.api.spec.definition);
+ assert.deepEqual(spec.components.schemas,schemas);assert.deepEqual(spec.paths['/orders'].post.requestBody,contract.requestBody);assert.deepEqual(spec.paths['/orders'].post.responses,contract.responses);assert.deepEqual(spec.paths['/orders'].post.parameters,contract.parameters);
+ assert.equal(spec.paths['/orders'].post.operationId,'create-order-post');assert.equal(contract.operationId,'create-order');
+});
+test('multi-method routes receive distinct OpenAPI operation identities',()=>{
+ const result=enrich(c('provider'),manifest('provider',{operations:[{direction:'provides',methods:['GET','POST'],path:'/items',contract:{operationId:'items',responses:{'200':{description:'Response'}}}}]}),[],[]);
+ const paths=JSON.parse(result.api.spec.definition).paths;assert.notEqual(paths['/items'].get.operationId,paths['/items'].post.operationId);
+});
