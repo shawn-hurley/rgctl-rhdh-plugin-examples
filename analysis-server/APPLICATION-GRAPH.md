@@ -1,6 +1,6 @@
 # Application onboarding and API-connected graphs
 
-`application-graph-server` is a separate Rust process using rgctl crates. The
+Application onboarding runs in the shared `rgctl-service` process using rgctl crates. The
 `application-graph` dynamic backend plugin obtains authorized Backstage catalog
 entities and sends onboarding work to it. A developer supplies an entity
 reference; repository locations and API relationships come from the catalog.
@@ -19,15 +19,21 @@ With the existing Podman VM running:
 
 ```sh
 sh local-dev/build-plugins.sh
-sh local-dev/build-application-graph.sh
+sh local-dev/build-service.sh
+sh local-dev/start-service.sh
 podman compose -f local-dev/application-graph-compose.yaml up -d --no-build
 python3 local-dev/verify-application-graph.py
 ```
 
-This independent stack serves RHDH on `http://localhost:17007` and the Rust
-service on `http://localhost:17071`. It has its own data and plugin volumes. It
-does not replace the dependency-impact stack. The included local development
+This host serves RHDH on `http://localhost:17007`. Both plugins use the same
+Rust service on port 7070; host port 17071 is a compatibility alias to that
+listener. Graphs and comparison reports keep separate persistent stores. See
+[shared configuration and migration](SERVICE.md). The included development
 tokens are for this loopback-only setup.
+
+The `application-graph-server` binary remains a compatibility entry point using
+its original `APPLICATION_GRAPH_*` environment variables. Do not run it alongside
+the shared service against the same graph store.
 
 Open the RHDH catalog and examine `spring-quoters`, `spring-quotes-client` and
 `quotes-api`. The Components use the standard `spec.providesApis` and
@@ -192,7 +198,7 @@ existing applications through a `quotes-api` entity. Source commits are recorded
 in each manifest; the inputs are fetched from their actual repositories.
 
 ```sh
-cargo test --manifest-path analysis-server/Cargo.toml --bin application-graph-server
+cargo test --manifest-path analysis-server/Cargo.toml --lib onboarding
 sh local-dev/test-application-graph.sh
 python3 local-dev/verify-application-graph.py
 python3 local-dev/verify-application-graph.py --verify-catalog-edits

@@ -1,0 +1,14 @@
+{
+  "comparisons": {
+    "applications": {},
+    "dataDir": "/data/comparisons",
+    "queueCapacity": 8
+  },
+  "applicationGraphs": {
+    "dataDir": "/data/application-graphs",
+    "allowedRepositoryHosts": ["github.com"],
+    "allowedSourceRoots": [],
+    "queueCapacity": 8
+  },
+  "maxConcurrentJobs": 1
+}

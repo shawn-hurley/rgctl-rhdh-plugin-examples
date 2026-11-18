@@ -47,5 +47,5 @@ dynamicPlugins:
 
 dependencyImpact:
   service:
-    baseUrl: http://analysis:7070
-    token: dependency-impact-local-service
+    baseUrl: http://rgctl-service:7070
+    token: rgctl-local-service

@@ -348,6 +348,7 @@ dependencies = [
  "sha2",
  "tempfile",
  "tokio",
+ "tower",
  "tree-sitter",
  "url",
  "uuid",

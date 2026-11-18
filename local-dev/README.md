@@ -1,12 +1,12 @@
 # Running the RHDH plugins locally
 
-Both workflows are on `main`. The supplied Compose files run separate RHDH hosts
-and Rust services, with distinct project names/volumes so they can coexist.
+Both workflows share one Rust service and run in separate RHDH hosts. Start
+the shared service once; either or both hosts can then connect to it.
 
 | Workflow | Compose file | RHDH | Rust | Dynamic plugin config |
 | --- | --- | --- | --- | --- |
 | Dependency Impact | `local-dev/compose.yaml` | `http://localhost:7007` | `http://localhost:7070` | `local-dev/dynamic-plugins.yaml` |
-| Application Graph | `local-dev/application-graph-compose.yaml` | `http://localhost:17007` | `http://localhost:17071` | `local-dev/application-graph-plugins.yaml` |
+| Application Graph | `local-dev/application-graph-compose.yaml` | `http://localhost:17007` | `http://localhost:7070` (17071 alias) | `local-dev/application-graph-plugins.yaml` |
 
 Run commands from the repository root. Use Chrome and choose **Enter** under
 **Guest** when opening either host.
@@ -48,12 +48,37 @@ builds below use the selected rgctl checkout through their helpers. Use
 `up --no-build`; implicit Compose builds do not supply that named source context.
 Initial downloads/compilation can take several minutes.
 
+## Shared Rust service
+
+```sh
+sh local-dev/build-service.sh
+sh local-dev/start-service.sh
+```
+
+`service-compose.yaml` runs one `rgctl-service` container and creates the shared
+`rgctl-services` network. Both host configurations use `http://rgctl-service:7070`
+and the same backend-only token. Both host ports 7070 and 17071 reach this same
+listener. `build-analysis.sh` and `build-application-graph.sh` remain compatibility
+aliases for the single image build.
+
+Configure `service-config.json`: `comparisons` contains application inputs and
+its report store; `applicationGraphs` contains repository permissions and its graph
+store. `maxConcurrentJobs` defaults to 1 across both queues. The two persistent
+stores reuse the existing named volumes. The startup helper creates missing
+volumes and refuses to run alongside a legacy writer. See
+[configuration and migration](../analysis-server/SERVICE.md).
+
+To supply local sources or settings, use an ignored Compose override:
+
+```sh
+sh local-dev/start-service.sh -f local-dev/.generated/service.override.yaml
+```
+
 ## Application Graph
 
 The tracked setup uses public Spring repositories and needs no ignored fixtures:
 
 ```sh
-sh local-dev/build-application-graph.sh
 podman compose -f local-dev/application-graph-compose.yaml up -d --no-build
 python3 local-dev/verify-application-graph.py
 ```
@@ -92,14 +117,16 @@ See the [service guide](../analysis-server/APPLICATION-GRAPH.md) and
 for examples, supported schema inference, authorization and configuration.
 
 The service allows `github.com` by default; edit
-`application-graph-config.json` to permit other repository hosts. Local `file:`
-source repositories are disabled unless explicitly allowed under
-`allowedSourceRoots`. The Rust store is persisted in the `application-graphs`
-volume and includes immutable graph versions/checksums.
+`service-config.json` under `applicationGraphs` to permit other repository hosts.
+Local `file:` source repositories are disabled unless explicitly allowed under
+`allowedSourceRoots`. The Rust store is persisted in the shared service
+`application-graph-local_application-graphs` volume and includes immutable graph
+versions/checksums.
 
 ## Dependency Impact inputs
 
-The default stack points at eight local Java/Maven demos. Their applications,
+The UI discovery manifest lists eight local Java/Maven demos; the shared service
+starts with no configured comparison applications. The demo applications,
 qualification fixtures, preparation scripts and catalog walkthrough files are
 intentionally ignored. They are not supplied by a fresh Git clone.
 
@@ -108,7 +135,6 @@ In an existing workspace containing `local-dev/prepare-demos.py` and
 
 ```sh
 python3 local-dev/prepare-demos.py
-sh local-dev/build-analysis.sh
 podman compose -f local-dev/compose.yaml up -d --no-build
 ```
 
@@ -121,8 +147,9 @@ an affected testing area and inspect its call graph and full source block.
 
 For your own inputs, configure these pieces together before starting the stack:
 
-1. Mount a standalone Maven module into the analysis container and add its
-   canonical Component reference to `analysis-config.json` under `applications`,
+1. Mount a standalone Maven module into the shared Rust container and add its
+   canonical Component reference to `service-config.json` under
+   `comparisons.applications`,
    with a container-visible `path` and matching `revision` label.
 2. Register that Component through the catalog locations configured in
    `app-config.yaml`. Replace the default demo catalog mount/location when the
@@ -158,14 +185,15 @@ volumes retain Rust graphs/reports across container restarts and `down`.
 If you started a stack with an ignored override, use the same `-f` files for all
 subsequent commands; using only the base file can replace local catalog mounts.
 
-For Rust-only changes, rebuild/recreate only the relevant service:
+For Rust-only changes, rebuild/recreate the shared service once:
 
 ```sh
-sh local-dev/build-analysis.sh
-podman compose -f local-dev/compose.yaml up -d --no-build --force-recreate analysis
-sh local-dev/build-application-graph.sh
-podman compose -f local-dev/application-graph-compose.yaml up -d --no-build --force-recreate application-graph
+sh local-dev/build-service.sh
+podman compose -f local-dev/service-compose.yaml up -d --no-build --force-recreate rgctl-service
 ```
+
+Include the same configuration override files used at startup. This reload affects
+both workflows; wait for their active jobs to finish first. It does not restart RHDH.
 
 Checks for code changes:
 
@@ -188,6 +216,8 @@ Stop only the requested stack; do not add `-v` unless deleting its data is inten
 ```sh
 podman compose -f local-dev/compose.yaml down
 podman compose -f local-dev/application-graph-compose.yaml down
+# Stop the shared service only when both workflows can be offline:
+podman compose -f local-dev/service-compose.yaml down
 ```
 
 ## Package for another RHDH host
@@ -222,7 +252,8 @@ curl -H 'Authorization: Bearer application-graph-local-development' \
 
 Expected availability flags are `analysisAvailable: true` and
 `graphServiceAvailable: true`. Inspect the affected project's `install-plugins`,
-`rhdh` and `analysis`/`application-graph` logs with `logs --tail=60`.
+`rhdh` logs and the shared project
+`rgctl-service` logs with `logs --tail=60`.
 
 - Missing exports: run the plugin build before Compose.
 - Unavailable Podman socket: check the VM from your own terminal. These helpers

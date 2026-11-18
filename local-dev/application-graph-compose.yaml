@@ -1,16 +1,5 @@
 name: application-graph-local
 services:
-  application-graph:
-    image: localhost/application-graph:dev
-    environment:
-      APPLICATION_GRAPH_CONFIG: /config/service.json
-      APPLICATION_GRAPH_SERVICE_TOKEN: application-graph-local-service
-    ports:
-      - "127.0.0.1:17071:7071"
-    volumes:
-      - ./application-graph-config.json:/config/service.json:ro,z
-      - ${HOME}/.m2:/root/.m2:z
-      - application-graphs:/data
   install-plugins:
     image: ${RHDH_IMAGE:-quay.io/rhdh-community/rhdh:1.10.6}
     user: "0"
@@ -30,11 +19,14 @@ services:
       - ./application-graph-app-config.yaml:/opt/app-root/src/local-config.yaml:ro,z
       - ./application-catalog.yaml:/opt/app-root/src/application-catalog.yaml:ro,z
       - dynamic-plugins:/opt/app-root/src/dynamic-plugins-root:ro
+    networks: [default, rgctl-service]
     depends_on:
-      application-graph:
-        condition: service_started
       install-plugins:
         condition: service_completed_successfully
 volumes:
-  application-graphs:
   dynamic-plugins:
+
+networks:
+  rgctl-service:
+    external: true
+    name: rgctl-services

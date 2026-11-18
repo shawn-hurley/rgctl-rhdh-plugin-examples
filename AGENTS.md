@@ -5,13 +5,14 @@
 This repository contains two dynamic RHDH/Backstage workflows:
 
 - Dependency Impact: `plugins/dependency-impact`,
-  `plugins/dependency-impact-backend`, and the `dependency-impact-server` Rust binary.
+  `plugins/dependency-impact-backend`, and the comparison API.
 - Application Graph: `plugins/application-graph-backend`,
   `plugins/catalog-backend-module-application-graph`, and the
-  `application-graph-server` Rust binary.
+  application onboarding/graph API.
 
-Both binaries live in `analysis-server/`. Import rgctl as Rust crates; do not
-replace this integration with CLI subprocesses, SCIP, or external indexers.
+Both APIs run in the single `rgctl-service` binary in `analysis-server/`.
+Reuse its shared library, authentication and worker limiter. Import rgctl as
+Rust crates; do not replace this integration with CLI subprocesses, SCIP, or external indexers.
 Catalog enrichment belongs in the catalog module; authorized browser-facing
 requests go through the Backstage backend, with Rust service credentials kept
 backend-only. Preserve source/graph provenance and existing detected impacts.
@@ -42,17 +43,22 @@ Read `README.md` and `local-dev/README.md` before starting services. From the ro
 
 ```sh
 sh local-dev/build-plugins.sh
-sh local-dev/build-analysis.sh
-sh local-dev/build-application-graph.sh
+sh local-dev/build-service.sh
+sh local-dev/start-service.sh
 ```
 
 The plugin helper exports all four dynamic packages. Use the service build
-helpers: they pass the selected rgctl source as a named build context. Start
+helper: it passes the selected rgctl source as a named build context. Start
 Compose with `--no-build` after building the images.
 
-- Dependency Impact: `local-dev/compose.yaml`, RHDH 7007, Rust 7070.
-- Application Graph: `local-dev/application-graph-compose.yaml`, RHDH 17007,
-  Rust 17071.
+- Shared Rust service: `local-dev/service-compose.yaml`, listener 7070, host
+  ports 7070 and compatibility alias 17071. Configure `service-config.json`.
+- Dependency Impact host: `local-dev/compose.yaml`, RHDH 7007.
+- Application Graph host: `local-dev/application-graph-compose.yaml`, RHDH 17007.
+
+Start the shared service before either host. Both backends use the same URL/token.
+Its report and graph volumes must remain separate, and only one process may write
+these stores. Stop legacy Rust writers before migrating; see `analysis-server/SERVICE.md`.
 
 Inspect the currently running project/configuration before changing containers.
 An ignored Compose override may provide local import demos; keep using the same

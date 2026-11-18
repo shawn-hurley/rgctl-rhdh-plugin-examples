@@ -1,24 +1,6 @@
 name: dependency-impact-dev
 
 services:
-  analysis:
-    image: localhost/dependency-impact-analysis:dev
-    build:
-      context: ../..
-      dockerfile: cve-blast-radius-rhdh/analysis-server/Containerfile
-      args:
-        RGCTL_REVISION: ${RGCTL_REVISION:-unknown}
-    environment:
-      IMPACT_CONFIG: /config/analysis-config.json
-      IMPACT_SERVICE_TOKEN: dependency-impact-local-service
-    ports:
-      - "127.0.0.1:7070:7070"
-    volumes:
-      - ./analysis-config.json:/config/analysis-config.json:ro,z
-      - ../demo-evaluation/demos:/demos:ro,z
-      - ${HOME}/.m2:/root/.m2:z
-      - analysis-data:/data
-
   install-plugins:
     image: ${RHDH_IMAGE:-quay.io/rhdh-community/rhdh:1.10.6}
     user: "0"
@@ -46,12 +28,15 @@ services:
       - ./app-config.yaml:/opt/app-root/src/local-config.yaml:ro,z
       - ../demo-evaluation:/opt/app-root/src/demo-evaluation:ro,z
       - dynamic-plugins:/opt/app-root/src/dynamic-plugins-root:ro
+    networks: [default, rgctl-service]
     depends_on:
-      analysis:
-        condition: service_started
       install-plugins:
         condition: service_completed_successfully
 
 volumes:
   dynamic-plugins:
-  analysis-data:
+
+networks:
+  rgctl-service:
+    external: true
+    name: rgctl-services

@@ -39,5 +39,5 @@ dynamicPlugins:
   rootDirectory: dynamic-plugins-root
 applicationGraph:
   service:
-    baseUrl: http://application-graph:7071
-    token: application-graph-local-service
+    baseUrl: http://rgctl-service:7070
+    token: rgctl-local-service

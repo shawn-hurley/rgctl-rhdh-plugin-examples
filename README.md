@@ -1,15 +1,16 @@
 # rgctl RHDH plugin examples
 
 Two workflows implemented as dynamic Backstage/Red Hat Developer Hub plugins,
-backed by Rust services that import rgctl as crates.
+backed by one Rust service that imports rgctl as crates.
 
 | Workflow | What it does | Local UI |
 | --- | --- | --- |
 | Dependency Impact | Compare Maven dependency versions and identify application code to test, including transitive changes and injected implementations | [Dependency Impact](http://localhost:7007/dependency-impact) |
 | Application Graph | Import existing Java applications, persist their graphs, and enrich catalog dependencies, APIs, schemas and inverse relationships | [Catalog import](http://localhost:17007/catalog-import) |
 
-Both workflows are on `main`. Their supplied Compose stacks use separate RHDH
-hosts, ports and volumes, so they can run alongside each other.
+Both workflows use the same `rgctl-service` process, HTTP listener, credentials
+and worker budget. The supplied Compose stacks keep separate RHDH hosts.
+Reports and application graphs retain separate persistent stores.
 
 ## Select rgctl and build
 
@@ -41,12 +42,26 @@ JDK 17+ when run outside the provided containers. This repository does not pin
 toolchains or use separate dependency caches. Start the Podman VM yourself on
 macOS before running the container commands.
 
+## Start the shared Rust service
+
+Build and start it once, before either RHDH host:
+
+```sh
+sh local-dev/build-service.sh
+sh local-dev/start-service.sh
+```
+
+Both plugins connect to `http://rgctl-service:7070` over the shared Compose
+network. Host ports 7070 and 17071 reach that same process; 17071 is a compatibility
+alias. Configure both workflows in `local-dev/service-config.json`. Its default
+comparison application list is empty, so graph onboarding can start without
+local demo assets. See the [shared service guide](analysis-server/SERVICE.md).
+
 ## Run Application Graph
 
 This stack can run from a fresh clone using the tracked public Spring catalog:
 
 ```sh
-sh local-dev/build-application-graph.sh
 podman compose -f local-dev/application-graph-compose.yaml up -d --no-build
 python3 local-dev/verify-application-graph.py
 ```
@@ -66,19 +81,19 @@ excluded from Git. In a workspace that already has those assets:
 
 ```sh
 python3 local-dev/prepare-demos.py
-sh local-dev/build-analysis.sh
 podman compose -f local-dev/compose.yaml up -d --no-build
 ```
 
 Open [RHDH on port 7007](http://localhost:7007), enter as Guest, and select
 **Dependency Impact**. A fresh clone needs application inputs configured before
-starting this stack; see [local setup](local-dev/README.md#dependency-impact-inputs)
+using comparisons; see [local setup](local-dev/README.md#dependency-impact-inputs)
 for the catalog, service and discovery-provider configuration involved.
 
 ## Development
 
 - [Run, configure, reload and troubleshoot both workflows](local-dev/README.md)
 - [Agent instructions](AGENTS.md)
+- [Shared service and migration](analysis-server/SERVICE.md)
 - [Comparison service](analysis-server/README.md)
 - [Application graph service](analysis-server/APPLICATION-GRAPH.md)
 - [Phased plans](plans/README.md)

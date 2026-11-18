@@ -1,6 +1,6 @@
 # Application graph validation
 
-The separate Rust service and dynamically loaded RHDH backend were exercised
+The Rust service and dynamically loaded RHDH backend were exercised
 against actual upstream Java repositories, registered through standard catalog
 Components and an API entity. The Java services were indexed from source; these
 checks do not deploy their application runtimes.
@@ -46,3 +46,6 @@ The [setup guide](APPLICATION-GRAPH.md) provides commands to repeat the live
 onboarding, catalog-edit and restart checks. Generated JSON results, source
 provenance, browser screenshots and package integrity values stay in the ignored
 development-output directory.
+
+The subsequent [shared-service validation](SHARED-SERVICE-VALIDATION.md) verifies
+these workflows after consolidating the Rust containers.

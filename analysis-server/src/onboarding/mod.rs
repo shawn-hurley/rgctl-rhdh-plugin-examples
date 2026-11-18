@@ -16,6 +16,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+pub use model::Config;
 use model::*;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -297,17 +298,17 @@ fn execute(config: &Config, id: &str) -> anyhow::Result<()> {
     store::write(&dir.join("job.json"), &job)
 }
 
-pub async fn serve() -> anyhow::Result<()> {
-    let path = std::env::var("APPLICATION_GRAPH_CONFIG")
-        .unwrap_or_else(|_| "application-graph.json".into());
-    let mut config: Config = store::read(&PathBuf::from(path))?;
+pub async fn router(
+    mut config: Config,
+    token: String,
+    limiter: Arc<tokio::sync::Semaphore>,
+) -> anyhow::Result<Router> {
     anyhow::ensure!(
         config.queue_capacity > 0 && config.queue_capacity <= 100,
         "Queue capacity must be 1–100"
     );
     std::fs::create_dir_all(config.data_dir.join("versions"))?;
     config.data_dir = config.data_dir.canonicalize()?;
-    let token = std::env::var("APPLICATION_GRAPH_SERVICE_TOKEN")?;
     anyhow::ensure!(
         token.len() >= 16,
         "Service token must have at least 16 characters"
@@ -334,6 +335,9 @@ pub async fn serve() -> anyhow::Result<()> {
     let worker = state.config.clone();
     tokio::spawn(async move {
         while let Some(id) = receive.recv().await {
+            let Ok(_permit) = limiter.clone().acquire_owned().await else {
+                break;
+            };
             let config = worker.clone();
             let failed_id = id.clone();
             let result = tokio::task::spawn_blocking(move || execute(&config, &id)).await;
@@ -361,18 +365,21 @@ pub async fn serve() -> anyhow::Result<()> {
         .route("/v1/connections", get(connections).post(live_connections))
         .layer(DefaultBodyLimit::max(256 * 1024))
         .route_layer(middleware::from_fn_with_state(state.clone(), authenticate));
-    let app = Router::new()
-        .route("/health", get(|| async { Json(json!({"status":"ready"})) }))
-        .merge(routes)
-        .with_state(state);
-    let address =
-        std::env::var("APPLICATION_GRAPH_LISTEN").unwrap_or_else(|_| "127.0.0.1:7071".into());
-    let listener = tokio::net::TcpListener::bind(&address).await?;
-    println!("Application graph service listening on {address}");
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await?;
-    Ok(())
+    Ok(routes.with_state(state))
+}
+
+/// Compatibility entry point; normal deployment uses the combined service.
+pub async fn serve() -> anyhow::Result<()> {
+    let path = std::env::var("APPLICATION_GRAPH_CONFIG")
+        .unwrap_or_else(|_| "application-graph.json".into());
+    let config: Config = store::read(&PathBuf::from(path))?;
+    let token = std::env::var("APPLICATION_GRAPH_SERVICE_TOKEN")?;
+    let app = router(config, token, Arc::new(tokio::sync::Semaphore::new(1)))
+        .await?
+        .route("/health", get(|| async { Json(json!({"status":"ready"})) }));
+    crate::service::listen(
+        app,
+        std::env::var("APPLICATION_GRAPH_LISTEN").unwrap_or_else(|_| "127.0.0.1:7071".into()),
+    )
+    .await
 }

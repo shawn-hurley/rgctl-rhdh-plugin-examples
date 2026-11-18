@@ -1,0 +1,28 @@
+name: rgctl-services
+services:
+  rgctl-service:
+    image: localhost/rgctl-service:dev
+    environment:
+      RGCTL_SERVICE_CONFIG: /config/service.json
+      RGCTL_SERVICE_TOKEN: rgctl-local-service
+    ports:
+      - "127.0.0.1:7070:7070"
+      # Compatibility host alias; both ports reach the same process/listener.
+      - "127.0.0.1:17071:7070"
+    volumes:
+      - ./service-config.json:/config/service.json:ro,z
+      - ${HOME}/.m2:/root/.m2:z
+      - comparison-data:/data/comparisons
+      - graph-data:/data/application-graphs
+    networks: [backend]
+networks:
+  backend:
+    name: rgctl-services
+volumes:
+  # Reuse existing stores without copying or changing their contents.
+  comparison-data:
+    external: true
+    name: dependency-impact-dev_analysis-data
+  graph-data:
+    external: true
+    name: application-graph-local_application-graphs

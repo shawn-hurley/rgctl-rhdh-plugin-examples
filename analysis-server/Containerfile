@@ -14,16 +14,9 @@ ARG RGCTL_REVISION=unknown
 ENV RGCTL_REVISION=${RGCTL_REVISION}
 RUN cargo build --locked --manifest-path /src/cve-blast-radius-rhdh/analysis-server/Cargo.toml
 
-FROM docker.io/library/debian:bookworm-slim AS application-graph
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates maven openjdk-17-jre-headless && rm -rf /var/lib/apt/lists/*
-COPY --from=build /src/cve-blast-radius-rhdh/analysis-server/target/debug/application-graph-server /usr/local/bin/application-graph-server
-ENV APPLICATION_GRAPH_LISTEN=0.0.0.0:7071
-EXPOSE 7071
-ENTRYPOINT ["application-graph-server"]
-
-FROM docker.io/library/debian:bookworm-slim AS dependency-impact
-RUN apt-get update && apt-get install -y --no-install-recommends maven openjdk-17-jdk-headless ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=build /src/cve-blast-radius-rhdh/analysis-server/target/debug/dependency-impact-server /usr/local/bin/dependency-impact-server
-ENV IMPACT_LISTEN=0.0.0.0:7070
+FROM docker.io/library/debian:bookworm-slim AS shared-service
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates maven openjdk-17-jdk-headless && rm -rf /var/lib/apt/lists/*
+COPY --from=build /src/cve-blast-radius-rhdh/analysis-server/target/debug/rgctl-service /usr/local/bin/rgctl-service
+ENV RGCTL_SERVICE_LISTEN=0.0.0.0:7070
 EXPOSE 7070
-ENTRYPOINT ["dependency-impact-server"]
+ENTRYPOINT ["rgctl-service"]

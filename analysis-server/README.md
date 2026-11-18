@@ -1,6 +1,6 @@
 # Dependency impact analysis service
 
-Rust HTTP service importing the selected `rgctl-source` checkout's graph, pipeline,
+Comparison API in the shared `rgctl-service` HTTP server, importing the selected `rgctl-source` checkout's graph, pipeline,
 analysis, registry, and Java crates. Maven is invoked for dependency resolution
 and artifact acquisition; rgctl is never invoked as a subprocess.
 
@@ -16,32 +16,24 @@ Prerequisites: a selected `rgctl-source` checkout, a Rust compiler meeting that
 checkout's minimum version (currently 1.99), Maven, and JDK 17 or later. No
 toolchain file or isolated dependency caches are required.
 
-From the application repository root:
+From the application repository root, configure `local-dev/service-config.json`
+and run the [shared service](SERVICE.md). It serves comparisons and application
+onboarding on the same port with `RGCTL_SERVICE_TOKEN`.
 
-```sh
-python3 local-dev/select-rgctl.py /path/to/rgctl-checkout
-python3 local-dev/prepare-demos.py
-cargo build --manifest-path analysis-server/Cargo.toml
-IMPACT_CONFIG=local-dev/.generated/analysis-config.json \
-IMPACT_SERVICE_TOKEN=dependency-impact-local-service \
-analysis-server/target/debug/dependency-impact-server
-```
+The local-only `prepare-demos.py` builds controlled releases and source JARs in
+the ordinary Maven repository. Published artifacts use Maven acquisition; private
+repositories and credentials use normal Maven settings.
 
-`prepare-demos.py` builds the controlled demo releases and creates their source
-JARs in the ordinary Maven repository. It does not run comparison analysis or
-modify the evaluation fixtures. Published Commons IO artifacts are acquired by
-the service through Maven. Private repositories and credentials use normal Maven
-settings; these are not browser request fields.
-
-For the Podman Compose setup, follow [local development](../local-dev/README.md).
-Stop a standalone service before starting Compose because both expose port 7070.
+The `dependency-impact-server` binary remains a compatibility entry point for
+standalone comparisons using `IMPACT_CONFIG`, `IMPACT_SERVICE_TOKEN` and
+`IMPACT_LISTEN`. It must not write the same report store as the shared service.
 
 ## Submit a comparison
 
 Direct Rust API example:
 
 ```sh
-curl -H 'Authorization: Bearer dependency-impact-local-service' \
+curl -H 'Authorization: Bearer rgctl-local-service' \
   -H 'Content-Type: application/json' \
   -d '{"entityRef":"component:default/dependency-impact-checkout","applicationRevision":"demo-baseline","dependency":{"groupId":"io.rgctl.demo","artifactId":"pricing"},"targetVersion":"1.1.0","strategy":"direct-upgrade"}' \
   http://localhost:7070/v1/comparisons
@@ -138,10 +130,9 @@ Each Maven invocation has a three-minute limit. Source archives are restricted
 to enclosed Java paths and a 256 MiB extraction limit. Comparisons exceeding the
 supported change/path report limits fail explicitly instead of silently truncating.
 
-`GET /health` is unauthenticated. Comparison endpoints require
-`IMPACT_SERVICE_TOKEN`. `IMPACT_LISTEN` defaults to `127.0.0.1:7070`. Configuration
-is read from `IMPACT_CONFIG` (default `config.json`); examples are generated for
-standalone use or supplied by `local-dev/analysis-config.json` for Compose.
+`GET /health` is unauthenticated. All comparison endpoints use the shared
+`RGCTL_SERVICE_TOKEN`; configuration lives under `comparisons` in the combined
+service config. See [service configuration](SERVICE.md).
 
 The build records the rgctl commit and a source-content fingerprint, including
 working-tree changes. All rgctl dependencies come from that same checkout.
